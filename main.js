@@ -237,7 +237,7 @@ const UPDATE_TIMEOUT = 6000;
 function updateManifestUrl() {
   return (
     process.env.DESKNOTE_UPDATE_URL ||
-    'https://raw.githubusercontent.com/Heisn1006/desk-note/main/version.json'
+    'https://api.github.com/repos/Heisn1006/desk-note/contents/version.json'
   );
 }
 
@@ -257,9 +257,25 @@ async function fetchManifest(url) {
   const timer = setTimeout(() => ctrl.abort(), UPDATE_TIMEOUT);
   try {
     if (/^https?:/i.test(url)) {
-      const res = await net.fetch(url, { cache: 'no-store', signal: ctrl.signal });
+      // 走 GitHub 的 contents API：raw.githubusercontent.com 在很多网络下被重置，
+      // api.github.com 通常可达；Accept: raw 让接口直接回文件内容
+      const res = await net.fetch(url, {
+        cache: 'no-store',
+        signal: ctrl.signal,
+        headers: { Accept: 'application/vnd.github.raw', 'User-Agent': 'DeskNote' },
+      });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      return await res.json();
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        // 没吃到 raw 时，内容 API 会包一层 { encoding: 'base64', content: '...' }
+        const wrap = JSON.parse(text);
+        if (wrap && wrap.encoding === 'base64' && wrap.content) {
+          return JSON.parse(Buffer.from(wrap.content, 'base64').toString('utf8'));
+        }
+        throw new Error('manifest 不是 JSON');
+      }
     }
     return JSON.parse(fs.readFileSync(url.replace(/^file:\/\//i, ''), 'utf8'));
   } finally {

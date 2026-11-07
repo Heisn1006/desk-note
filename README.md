@@ -126,8 +126,12 @@ Electron 45 + 原生 HTML/CSS/JS，无框架、无构建步骤。
 }
 ```
 
-清单地址在 `main.js` 的 `updateManifestUrl()` 里，把 `YOUR_NAME/desk-note` 换成自己的仓库就能用；
-调试时可以用环境变量 `DESKNOTE_UPDATE_URL` 指向本地文件或 http 地址，不用改动代码。
+清单地址在 `main.js` 的 `updateManifestUrl()` 里，形如
+`https://api.github.com/repos/<用户名>/<仓库>/contents/version.json`。
+
+> 用 **api.github.com 的 contents 接口**、并带 `Accept: application/vnd.github.raw`，是因为 `raw.githubusercontent.com` 和 `cdn.jsdelivr.net` 在很多网络（尤其国内）会被重置；实测本机 raw 是 000、api 是 200。
+
+调试时可以用环境变量 `DESKNOTE_UPDATE_URL` 指向本地文件或任意 http 地址，不用改动代码。
 
 ## 上传到 GitHub
 
