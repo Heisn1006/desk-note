@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: file:;" />
+<title>DeskNote</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="card">
+    <div class="plugin-layer" id="pluginLayer" hidden aria-hidden="true"></div>
+    <div class="bg-layer" id="bgLayer" hidden aria-hidden="true">
+      <img class="bg-img" id="bgImg" alt="" draggable="false" />
+      <span class="bg-veil" id="bgVeil"></span>
+    </div>
+    <div class="mini-bar" id="miniBar">
+      <span class="mini-dot"></span>
+      <span class="mini-text">
+        <span class="mini-date" id="miniDate">—</span>
+        <span class="mini-next" id="miniNext">—</span>
+      </span>
+      <button class="mini-expand" id="miniExpand" data-i18n-title="mini.expand" title="展开便签">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+    </div>
+    <header class="top" id="dragbar">
+      <div class="brand">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="when">
+          <div class="d-day" id="dayText">—</div>
+          <div class="d-sub" id="subText" data-i18n="header.loading">载入中</div>
+        </div>
+      </div>
+      <div class="tools">
+        <button class="icon-btn" id="btnHide" data-i18n-title="header.hide" title="收起为迷你条">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 15 12 9 18 15"></polyline>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnClose" data-i18n-title="header.close" title="退出 DeskNote（Ctrl+Alt+N 只隐藏不退出）">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="nextup" id="nextup" hidden>
+      <span class="nu-label" id="nuLabel" data-i18n="nextup.label">下一个</span>
+      <span class="nu-time" id="nuTime">--:--</span>
+      <span class="nu-title" id="nuTitle"></span>
+      <span class="nu-cd" id="nuCd"></span>
+    </div>
+
+
+
+    <div class="editor" id="editor" hidden>
+      <input class="ed-title" id="edTitle" type="text" data-i18n-ph="ed.titlePh" placeholder="任务名称，如：论文初稿" autocomplete="off" />
+      <div class="ed-row">
+        <label class="ed-field">
+          <span data-i18n="ed.dueDate">截止日期</span>
+          <input type="date" id="edDueDate" />
+        </label>
+        <label class="ed-field">
+          <span data-i18n="ed.dueTime">截止时间</span>
+          <div class="ed-time">
+            <input type="number" id="edDueHour" min="0" max="23" maxlength="2" placeholder="18" />
+            <em>:</em>
+            <input type="number" id="edDueMin" min="0" max="59" maxlength="2" placeholder="00" />
+          </div>
+        </label>
+      </div>
+      <label class="ed-check">
+        <input type="checkbox" id="edHasStart" />
+        <span data-i18n="ed.hasStart">设置最迟开始时间（可选，勾选后从该时间开始每天提醒）</span>
+      </label>
+      <div class="ed-row" id="startRow" hidden>
+        <label class="ed-field">
+          <span data-i18n="ed.startDate">最迟开始</span>
+          <input type="date" id="edStartDate" />
+        </label>
+        <label class="ed-field">
+          <span data-i18n="ed.startTime">开始时间</span>
+          <div class="ed-time">
+            <input type="number" id="edStartHour" min="0" max="23" maxlength="2" placeholder="09" />
+            <em>:</em>
+            <input type="number" id="edStartMin" min="0" max="59" maxlength="2" placeholder="00" />
+          </div>
+        </label>
+      </div>
+      <div class="ed-row single">
+        <label class="ed-field">
+          <span data-i18n="ed.repeat">重复</span>
+          <select id="edRepeat">
+            <option value="" data-i18n="ed.repeatNone">不重复</option>
+            <option value="weekly" data-i18n="ed.repeatWeekly">每周（可多天）</option>
+          </select>
+        </label>
+      </div>
+      <div class="ed-row single" id="repeatDaysRow" hidden>
+        <div class="ed-field">
+          <span data-i18n="ed.repeatDays">每周哪几天（可多选）</span>
+          <div class="day-chips" id="dayChips">
+            <button type="button" class="day-chip" data-d="1" data-i18n="day.1" data-i18n-title="day.1.tip" title="每周一提醒（点击切换）">周一</button>
+            <button type="button" class="day-chip" data-d="2" data-i18n="day.2" data-i18n-title="day.2.tip" title="每周二提醒（点击切换）">周二</button>
+            <button type="button" class="day-chip" data-d="3" data-i18n="day.3" data-i18n-title="day.3.tip" title="每周三提醒（点击切换）">周三</button>
+            <button type="button" class="day-chip" data-d="4" data-i18n="day.4" data-i18n-title="day.4.tip" title="每周四提醒（点击切换）">周四</button>
+            <button type="button" class="day-chip" data-d="5" data-i18n="day.5" data-i18n-title="day.5.tip" title="每周五提醒（点击切换）">周五</button>
+            <button type="button" class="day-chip" data-d="6" data-i18n="day.6" data-i18n-title="day.6.tip" title="每周六提醒（点击切换）">周六</button>
+            <button type="button" class="day-chip" data-d="0" data-i18n="day.0" data-i18n-title="day.0.tip" title="每周日提醒（点击切换）">周日</button>
+          </div>
+        </div>
+      </div>
+      <div class="ed-btns">
+        <button class="ghost" id="edCancel" data-i18n="ed.cancel">取消</button>
+        <button class="primary" id="edSave" data-i18n="ed.add">添加</button>
+      </div>
+    </div>
+
+    <div class="list" id="list"></div>
+
+    <footer class="foot">
+      <div class="foot-left">
+        <button class="btn-add" id="btnPick" data-i18n-title="foot.add" title="新建任务">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="3" stroke-linecap="round">
+            <line x1="12" y1="4" x2="12" y2="20"></line>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+          </svg>
+        </button>
+        <button class="icon-btn gear" id="btnSettings" data-i18n-title="foot.settings" title="设置">⚙</button>
+      </div>
+      <span class="foot-ver">DeskNote</span>
+    </footer>
+
+    <div class="settings-panel" id="settingsPanel" hidden>
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.lang">语言</span>
+        <select class="sp-lang" id="spLang" title="Language">
+          <option value="zh-CN">简体中文</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.theme">皮肤</span>
+        <span class="swatches" id="swatches">
+          <button class="swatch" data-theme="paper" data-i18n-title="theme.paper" title="纸白"><i style="background:linear-gradient(135deg,#fffefb,#f6ecdb)"></i></button>
+          <button class="swatch" data-theme="night" data-i18n-title="theme.night" title="夜间"><i style="background:linear-gradient(135deg,#2b2622,#141210)"></i></button>
+          <button class="swatch" data-theme="mint" data-i18n-title="theme.mint" title="薄荷"><i style="background:linear-gradient(135deg,#f4fdf8,#d9efe4)"></i></button>
+          <button class="swatch" data-theme="indigo" data-i18n-title="theme.indigo" title="靛蓝"><i style="background:linear-gradient(135deg,#f2f5ff,#dfe4fb)"></i></button>
+          <button class="swatch" data-theme="rose" data-i18n-title="theme.rose" title="樱粉"><i style="background:linear-gradient(135deg,#fffafb,#fbdbe6)"></i></button>
+          <button class="swatch" data-theme="sand" data-i18n-title="theme.sand" title="暖沙"><i style="background:linear-gradient(135deg,#fdfaf2,#eddfc6)"></i></button>
+          <button class="swatch" data-theme="graphite" data-i18n-title="theme.graphite" title="墨黑"><i style="background:linear-gradient(135deg,#2f3237,#17191c)"></i></button>
+          <button class="swatch" data-theme="sky" data-i18n-title="theme.sky" title="晴空"><i style="background:linear-gradient(135deg,#f7fbff,#d5e7fa)"></i></button>
+        </span>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.bg">背景</span>
+        <button class="sp-mini" id="btnPickBg" data-i18n="sp.bgPick">选择图片</button>
+        <button class="sp-mini ghost" id="btnClearBg" data-i18n="sp.bgClear">清除背景</button>
+      </div>
+
+      <div class="sp-row2 sp-row-scale">
+        <span class="sp-k" data-i18n="sp.scale">缩放</span>
+        <div class="sp-range">
+          <input type="range" id="spScale" min="70" max="160" step="5" value="100" />
+          <span class="sp-bubble" id="spScaleVal">100%</span>
+        </div>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.hotkey">显隐</span>
+        <button class="sp-hk" id="hotkeyBtn" data-i18n-title="sp.hotkeyTip" title="点击后按下新的组合键">Ctrl + Alt + N</button>
+        <button class="sp-hk sp-hk-reset" id="hkReset" data-i18n="sp.hotkeyReset" data-i18n-title="sp.hotkeyResetTip" title="恢复默认 Ctrl + Alt + N">默认</button>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.plugins">插件</span>
+        <button class="sp-mini" id="btnPlugins" data-i18n="sp.pluginsManage">插件管理</button>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.autostart">自启</span>
+        <label class="switch" data-i18n-title="sp.autostartTip" title="开机自动启动">
+          <input type="checkbox" id="ckAuto" />
+          <span class="track"></span>
+        </label>
+        <button class="sp-mini sp-right" id="btnRestart" data-i18n="sp.restart" data-i18n-title="sp.restartTip" title="重启便签进程">重启便签</button>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.version">版本</span>
+        <span class="sp-ver" id="spVersion">-</span>
+        <button class="sp-mini sp-right" id="btnCheckUpdate" data-i18n="sp.checkUpdate">检查更新</button>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.footText">文案</span>
+        <input class="sp-text" id="spFootText" type="text" maxlength="48" data-i18n-ph="sp.footTextPh" placeholder="留空显示版本号" />
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.footFont">字体</span>
+        <select class="sp-lang" id="spFootFont">
+          <option value="">默认</option>
+          <option value="'Microsoft YaHei UI','Microsoft YaHei',sans-serif">微软雅黑</option>
+          <option value="SimSun,serif">宋体</option>
+          <option value="KaiTi,STKaiti,serif">楷体</option>
+          <option value="SimHei,sans-serif">黑体</option>
+          <option value="DengXian,sans-serif">等线</option>
+          <option value="'Segoe UI',sans-serif">Segoe UI</option>
+          <option value="Georgia,serif">Georgia</option>
+          <option value="Consolas,monospace">Consolas</option>
+        </select>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.footItalic">斜体</span>
+        <label class="switch">
+          <input type="checkbox" id="spFootItalic" />
+          <span class="track"></span>
+        </label>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.fullscreen">全屏</span>
+        <label class="switch"><input type="checkbox" id="ckFullscreen" /><span class="track"></span></label>
+        <span class="sp-hint" data-i18n="sp.fullscreenHint">全屏时自动隐藏</span>
+      </div>
+
+      <div class="sp-row2">
+        <span class="sp-k" data-i18n="sp.data">数据</span>
+        <button class="sp-mini" id="btnExport" data-i18n="sp.export">导出</button>
+        <button class="sp-mini ghost" id="btnImport" data-i18n="sp.import">导入</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <div class="plugins-modal" id="pluginsModal" hidden>
+      <div class="pm-head">
+        <span class="pm-title" data-i18n="plugin.title">插件管理</span>
+        <button class="pm-close" id="pmClose" data-i18n-title="plugin.close" title="关闭">✕</button>
+      </div>
+      <div class="pm-list" id="pmList"></div>
+      <div class="pm-note" data-i18n="plugin.note">启用或停用后，重启便签生效</div>
+    </div>
+
+    <div class="cropper" id="cropper" hidden>
+      <div class="crop-head">
+        <span class="crop-title" data-i18n="crop.title">选择背景区域</span>
+        <span class="crop-hint" data-i18n="crop.hint">拖动调整位置 · 滚轮缩放</span>
+      </div>
+      <img class="crop-ghost" id="cropGhost" alt="" draggable="false" />
+      <div class="crop-frame" id="cropFrame">
+        <img class="crop-img" id="cropImg" alt="" draggable="false" />
+        <div class="crop-grid"></div>
+      </div>
+      <div class="crop-bar">
+        <label class="crop-fade">
+          <span data-i18n="crop.fade">浓度</span>
+          <input type="range" id="cropFade" min="20" max="100" step="5" value="100" />
+        </label>
+        <button class="sp-mini" id="cropReset" data-i18n="crop.reset">重置</button>
+        <button class="sp-mini" id="cropCancel" data-i18n="crop.cancel">取消</button>
+        <button class="sp-mini primary" id="cropApply" data-i18n="crop.apply">确定</button>
+      </div>
+    </div>
+  </div>
+  <script src="i18n.js"></script>
+  <script src="schedule.js"></script>
+  <script src="crop.js"></script>
+  <script src="plugin-host.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

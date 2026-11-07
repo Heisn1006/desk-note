@@ -1,0 +1,57 @@
+{
+  "name": "desk-note",
+  "version": "0.2.14",
+  "description": "悬浮桌面便签：日程 / 任务 / 截止倒计时",
+  "main": "main.js",
+  "private": true,
+  "author": "DeskNote",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64",
+    "dist:dir": "electron-builder --win --x64 --dir"
+  },
+  "build": {
+    "appId": "com.desknote.widget",
+    "productName": "DeskNote",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "plugins/**/*",
+      "bin/**/*",
+      "renderer/**/*",
+      "assets/icon.ico",
+      "assets/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "dir"
+      ],
+      "artifactName": "DeskNote-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DeskNote 便签",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "DeskNote-${version}-portable.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "license": "MIT"
+}

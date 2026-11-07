@@ -1,0 +1,35 @@
+'use strict';
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('desk', {
+  load: () => ipcRenderer.invoke('state:load'),
+  saveTasks: (tasks) => ipcRenderer.invoke('state:save', tasks),
+  saveSettings: (patch) => ipcRenderer.invoke('settings:save', patch),
+  info: () => ipcRenderer.invoke('info:get'),
+  checkUpdate: (manual) => ipcRenderer.invoke('update:check', !!manual),
+  openUrl: (url) => ipcRenderer.invoke('update:open', url),
+  listPlugins: () => ipcRenderer.invoke('plugins:list'),
+  removePlugin: (id) => ipcRenderer.invoke('plugins:remove', id),
+  getWallpaper: () => ipcRenderer.invoke('wallpaper:get'),
+  getDisplay: () => ipcRenderer.invoke('display:info'),
+  getCaptureSource: () => ipcRenderer.invoke('capture:source'),
+  getWallpaperEngine: () => ipcRenderer.invoke('we:info'),
+  setContentProtection: (on) => ipcRenderer.invoke('capture:protect', on),
+  setHeight: (h) => ipcRenderer.send('ui:height', h),
+  notify: (payload) => ipcRenderer.send('notify', payload),
+  restart: () => ipcRenderer.send('app:restart'),
+  setHotkey: (accel) => ipcRenderer.invoke('hotkey:set', accel),
+  setMini: (on) => ipcRenderer.send('win:mini', on),
+  pickBg: () => ipcRenderer.invoke('bg:pick'),
+  discardBg: (url) => ipcRenderer.invoke('bg:discard', url),
+  exportData: () => ipcRenderer.invoke('data:export'),
+  importData: () => ipcRenderer.invoke('data:import'),
+  hide: () => ipcRenderer.send('win:hide'),
+  quit: () => ipcRenderer.send('win:quit'),
+  onSettingsChanged: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
+  onMiniState: (cb) => ipcRenderer.on('mini:state', (_e, on) => cb(!!on)),
+  onRollAnimate: (cb) => ipcRenderer.on('roll:animate', (_e, p) => cb(p)),
+  onRollSettle: (cb) => ipcRenderer.on('roll:settle', (_e, p) => cb(p)),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update:available', (_e, p) => cb(p)),
+});

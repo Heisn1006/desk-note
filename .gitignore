@@ -1,0 +1,24 @@
+# 依赖与构建产物
+node_modules/
+dist/
+*.zip
+
+# 用户数据 / 运行日志
+DeskNoteData/
+data/
+.data/
+boot.log
+*.log
+
+# 测试与截图产物
+.testdata/
+.tmp-wpsrc/
+/*.png
+/*.vbs.tmp
+
+# 只在本地留着的开发笔记（含本机路径、踩坑记录）
+项目状态与交接.md
+
+# 系统杂项
+Thumbs.db
+desktop.ini
