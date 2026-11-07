@@ -231,7 +231,7 @@ function setAutostart(on) {
  * 检查更新（读一个静态 version.json，不下载、不自动安装）
  * ------------------------------------------------------------------ */
 
-const UPDATE_TIMEOUT = 6000;
+const UPDATE_TIMEOUT = 15000;   // 本机到 GitHub 经常很慢，6 秒会把正常请求也打断
 
 // 换成你自己的仓库地址即可；调试时可用环境变量覆盖成本地文件/服务
 function updateManifestUrl() {
@@ -301,8 +301,10 @@ async function checkUpdate(manual) {
       notes: String((j && j.notes) || ''),
     };
   } catch (err) {
-    dbg('update check failed: ' + ((err && err.message) || err));
-    return { ok: false, current, error: String((err && err.message) || err) };
+    const msg = (err && err.message) || String(err);
+    const timeout = /abort/i.test(msg);
+    dbg('update check failed (' + (timeout ? 'timeout' : 'error') + '): ' + msg);
+    return { ok: false, current, reason: timeout ? 'timeout' : 'error', error: msg };
   }
 }
 

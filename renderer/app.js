@@ -1217,7 +1217,8 @@ function initSettingsUI() {
     try {
       const r = await window.desk.checkUpdate(true);
       if (!r || !r.ok) {
-        showToast(tr('update.fail', { e: String((r && r.error) || 'network').slice(0, 60) }), 3600);
+        const e = r && r.reason === 'timeout' ? tr('update.failTimeout') : String((r && r.error) || 'network');
+        showToast(tr('update.fail', { e: e.slice(0, 60) }), 3600);
         return;
       }
       updateInfo = r;
