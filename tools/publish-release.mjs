@@ -40,17 +40,34 @@ if (!version) die('没有版本号：`node tools/publish-release.mjs 0.2.15`');
 
 const tag = process.env.RELEASE_TAG || `v${version}`;
 const TITLE = `DeskNote ${version}`;
-const NOTES =
-  process.env.RELEASE_NOTES ||
-  [
-    `DeskNote ${version}`,
-    '',
-    '- 悬浮便签：任务 / 截止倒计时 / 每日提醒',
-    '- 壁纸穿透插件：静态壁纸、Wallpaper Engine 视频壁纸、屏幕取景',
-    '- 设置里的「检查更新」',
-    '',
-    '下载下面的安装包，解压后运行 `install.exe` 即可（会覆盖旧版本，任务和设置保留）。',
-  ].join('\n');
+// 优先用 CHANGELOG.md 里对应版本的小节
+function changelogNotes() {
+  try {
+    const f = path.join(ROOT, 'CHANGELOG.md');
+    if (!fs.existsSync(f)) return '';
+    const text = fs.readFileSync(f, 'utf8');
+    const re = new RegExp('^##\\s*v?' + version.replace(/\./g, '\\.') + '\\s*$', 'm');
+    const m = text.match(re);
+    if (!m) return '';
+    const rest = text.slice(m.index + m[0].length);
+    const next = rest.search(/^##\s/gm);
+    return (next >= 0 ? rest.slice(0, next) : rest).trim();
+  } catch {
+    return '';
+  }
+}
+
+const DEFAULT_NOTES = [
+  `DeskNote ${version}`,
+  '',
+  '- 悬浮便签：任务 / 截止倒计时 / 每日提醒',
+  '- 壁纸穿透插件：静态壁纸、Wallpaper Engine 视频壁纸、屏幕取景',
+  '- 设置里的「检查更新」',
+  '',
+  '下载下面的安装包，解压后运行 `install.exe` 即可（会覆盖旧版本，任务和设置保留）。',
+].join('\n');
+
+const NOTES = process.env.RELEASE_NOTES || changelogNotes() || DEFAULT_NOTES;
 
 if (version !== pkg.version) {
   log(`! 注意：package.json 是 ${pkg.version}，你要发的是 ${version}`);
@@ -227,6 +244,13 @@ function uploadAsset(uploadUrl, name, file) {
     die(`查 release 失败 ${rel.status}: ${rel.raw.slice(0, 200)}`);
   } else {
     log(`✓ release ${rel.json.tag_name || tag} 已存在（id=${rel.json.id}）`);
+    if (process.env.RELEASE_NOTES || changelogNotes()) {
+      const want = process.env.RELEASE_NOTES || changelogNotes();
+      if (rel.json.body !== want) {
+        const upd = await api('PATCH', `${base}/releases/${rel.json.id}`, { body: want });
+        if (upd.status < 300) log('✓ 已同步 release 说明');
+      }
+    }
   }
 
   const releaseId = rel.json.id;
