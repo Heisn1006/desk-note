@@ -133,15 +133,7 @@ Electron 45 + 原生 HTML/CSS/JS，无框架、无构建步骤。
 
 调试时可以用环境变量 `DESKNOTE_UPDATE_URL` 指向本地文件或任意 http 地址，不用改动代码。
 
-## 上传到 GitHub
-
-仓库里**只放源码**，不要把构建产物和用户数据传上去，否则大概率推不上去（GitHub 单文件 100MB 限制，`DeskNote.exe` 有 249MB）：
-
-- 不要提交：`dist/`、`node_modules/`、`.testdata/`、`.data/`、`DeskNoteData/`、`boot.log`、各种 `*.zip`、根目录的开发截图
-- 要提交：`main.js`、`preload.js`、`package.json`、`lib/`、`renderer/`、`plugins/`、`bin/`（两个小 exe 是功能的一部分）、`tools/`、`assets/`、README、`version.json`
-- 安装包走 **Releases** 上传（单个附件上限 2GB），不要塞进 git 历史
-
-`.gitignore` 已经按上面的规则写好了。
+## 关于开发方式
 
 本项目使用了 AI 辅助开发（对话式地定需求、写代码、做验证），代码由 AI 生成、由作者审阅与拍板。这不是什么需要隐瞒的事，写在这里只是避免误解。
 
