@@ -1,5 +1,5 @@
 {
   "version": "0.2.15",
   "url": "https://github.com/Heisn1006/desk-note/releases/latest",
-  "notes": "修复：检查更新 6 秒超时误报（改为 15 秒，超时提示改成中文）"
+  "notes": "修复：检查更新超时误报（6s→15s，提示中文化）；缩放滑块改为松开鼠标才生效"
 }

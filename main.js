@@ -1468,7 +1468,7 @@ if (!gotLock) {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const setScale = (v) =>
         win.webContents.executeJavaScript(
-          `(() => { const el = document.getElementById('spScale'); el.value = '${v}'; el.dispatchEvent(new Event('input', { bubbles: true })); return el.value; })()`
+          `(() => { const el = document.getElementById('spScale'); el.value = '${v}'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return el.value; })()`
         );
       (async () => {
         await wait(1200);

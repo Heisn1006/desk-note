@@ -1383,8 +1383,6 @@ function initSettingsUI() {
   spScale.value = String(pct);
   spScaleVal.textContent = pct + '%';
 
-  let scaleTimer = null;
-
   // 百分比气泡跟随滑块手柄
   const moveBubble = () => {
     const min = Number(spScale.min);
@@ -1398,12 +1396,12 @@ function initSettingsUI() {
   };
 
   moveBubble();
-  spScale.addEventListener('input', () => {
+  // 拖动中只动气泡，松手（change）才真正应用：
+  // 边拖边改窗口尺寸会让滑块在手底下跳，手感像「没松手就变了」
+  spScale.addEventListener('input', moveBubble);
+  spScale.addEventListener('change', async () => {
     moveBubble();
-    clearTimeout(scaleTimer);
-    scaleTimer = setTimeout(async () => {
-      settings = await window.desk.saveSettings({ uiScale: Number(spScale.value) / 100 });
-    }, 220);
+    settings = await window.desk.saveSettings({ uiScale: Number(spScale.value) / 100 });
   });
   spScale.addEventListener('pointerdown', moveBubble);
 }
