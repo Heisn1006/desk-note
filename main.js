@@ -283,6 +283,27 @@ async function fetchManifest(url) {
   }
 }
 
+let lastUpdateCheckAt = 0;
+const UPDATE_MIN_GAP = 30 * 60 * 1000;   // 自动检查最短间隔 30 分钟
+
+// 打开便签 / 启动时顺手检查一次；离上次不足 30 分钟就跳过
+async function autoCheckUpdate(reason) {
+  if (!win || win.isDestroyed()) return false;
+  // 页面还没就绪就先不查，交给启动后的定时器，否则 update:available 会发空
+  if (win.webContents.isLoading()) return false;
+  if (Date.now() - lastUpdateCheckAt < UPDATE_MIN_GAP) return false;
+  const r = await checkUpdate(false);
+  if (r && r.ok) lastUpdateCheckAt = Date.now();   // 只有成功才计入节流，失败下次还能再试
+  dbg('update auto-check (' + reason + ') ok=' + !!(r && r.ok) + ' newer=' + !!(r && r.newer));
+  if (r && r.ok && r.newer && win && !win.isDestroyed()) {
+    try {
+      win.webContents.send('update:available', r);
+      dbg('update: notify renderer ' + r.latest);
+    } catch {}
+  }
+  return !!(r && r.ok && r.newer);
+}
+
 async function checkUpdate(manual) {
   const current = app.getVersion();
   const url = updateManifestUrl();
@@ -704,7 +725,11 @@ function createWindow() {
       }
     }
   });
-  win.on('show', refreshTrayMenu);
+  win.on('show', () => {
+    refreshTrayMenu();
+    // 点开便签时顺手检查更新（30 分钟内不重复）
+    autoCheckUpdate('show');
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -1127,7 +1152,10 @@ function registerIpc() {
     updateUrl: updateManifestUrl(),
   }));
 
-  ipcMain.handle('update:check', (_e, manual) => checkUpdate(!!manual));
+  ipcMain.handle('update:check', (_e, manual) => {
+    if (manual) lastUpdateCheckAt = Date.now();
+    return checkUpdate(!!manual);
+  });
 
   ipcMain.handle('update:open', (_e, url) => {
     try {
@@ -1594,17 +1622,7 @@ if (!gotLock) {
     dbg('window created');
 
     // 启动后静默检查一次更新（失败只进日志，不打扰）
-    setTimeout(() => {
-      if (!win || win.isDestroyed()) return;
-      checkUpdate(false).then((r) => {
-        if (r && r.ok && r.newer) {
-          try {
-            win.webContents.send('update:available', r);
-            dbg('update: notify renderer ' + r.latest);
-          } catch {}
-        }
-      });
-    }, 5000);
+    setTimeout(() => autoCheckUpdate('startup'), 5000);
 
     startFullscreenWatcher();
     for (const ev of ['display-removed', 'display-added', 'display-metrics-changed']) {

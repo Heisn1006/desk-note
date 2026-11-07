@@ -261,7 +261,9 @@ function rowHTML(t, now) {
   const repeatTag =
     t.repeat === 'weekly'
       ? `<span class="repeat-tag" title="${tr('task.repeatTip')}">${tr('task.repeatTag')}</span>`
-      : '';
+      : t.repeat === 'monthly'
+        ? `<span class="repeat-tag" title="${tr('task.repeatTipMonthly')}">${tr('task.repeatTagMonthly')}</span>`
+        : '';
   // 用户自己命名的标题原样输出，不翻译、不改写
   const rowTip = t.startAt ? tr('task.tipStart', { date: startText(t) }) : tr('task.tipEdit');
 
@@ -465,6 +467,9 @@ const ed = {
   hasStart: $('#edHasStart'),
   startRow: $('#startRow'),
   repeatDaysRow: $('#repeatDaysRow'),
+  monthDaysRow: $('#monthDaysRow'),
+  hasDue: $('#edHasDue'),
+  dueRow: $('#dueRow'),
   save: $('#edSave'),
   cancel: $('#edCancel'),
 };
@@ -491,9 +496,15 @@ function readTimeFields(hEl, mEl) {
 
 function openEditor(task) {
   const now = new Date();
+  // 和设置面板互斥：点「+」打开编辑器时，先把设置收掉
+  const sp = $('#settingsPanel');
+  if (sp && !sp.hidden) sp.hidden = true;
   editingId = task ? task.id : null;
   ed.wrap.hidden = false;
   ed.save.textContent = editingId ? tr('ed.save') : tr('ed.add');
+  const hasDue = task ? !!task.due : true;
+  ed.hasDue.checked = hasDue;
+  ed.dueRow.hidden = !hasDue;
 
   if (task) {
     ed.title.value = task.title;
@@ -508,6 +519,11 @@ function openEditor(task) {
       chip.classList.toggle('active', days.includes(Number(chip.dataset.d)));
     });
     ed.repeatDaysRow.hidden = ed.repeat.value !== 'weekly';
+    ed.monthDaysRow.hidden = ed.repeat.value !== 'monthly';
+    const mdays = Array.isArray(task.monthDays) ? task.monthDays : [];
+    document.querySelectorAll('.mon-chip').forEach((chip) => {
+      chip.classList.toggle('active', mdays.includes(Number(chip.dataset.d)));
+    });
     if (task.startAt) {
       const s = new Date(task.startAt);
       ed.startDate.value = dateStr(s);
@@ -528,7 +544,9 @@ function openEditor(task) {
     ed.startRow.hidden = true;
     ed.repeat.value = '';
     document.querySelectorAll('.day-chip').forEach((chip) => chip.classList.remove('active'));
+    document.querySelectorAll('.mon-chip').forEach((chip) => chip.classList.remove('active'));
     ed.repeatDaysRow.hidden = true;
+    ed.monthDaysRow.hidden = true;
   }
 
   ed.wrap.hidden = false;
@@ -553,6 +571,7 @@ function saveEditor() {
     ed.title.focus();
     return;
   }
+  const hasDue = ed.hasDue.checked;
   const dDate = ed.dueDate.value || dateStr(new Date());
   const dTime = readTimeFields(ed.dueHour, ed.dueMin);
   const sDate = ed.startDate.value || '';
@@ -560,13 +579,17 @@ function saveEditor() {
 
   const fields = {
     title,
-    due: `${dDate}T${dTime || '23:59'}`,
-    hasTime: !!dTime,
-    startAt: ed.hasStart.checked && sDate ? `${sDate}T${sTime || '00:00'}` : null,
-    repeat: ed.repeat.value || '',
+    due: hasDue ? `${dDate}T${dTime || '23:59'}` : null,
+    hasTime: hasDue && !!dTime,
+    startAt: hasDue && ed.hasStart.checked && sDate ? `${sDate}T${sTime || '00:00'}` : null,
+    repeat: hasDue ? ed.repeat.value || '' : '',
     repeatDays:
-      ed.repeat.value === 'weekly'
+      hasDue && ed.repeat.value === 'weekly'
         ? [...document.querySelectorAll('.day-chip.active')].map((c) => Number(c.dataset.d))
+        : [],
+    monthDays:
+      hasDue && ed.repeat.value === 'monthly'
+        ? [...document.querySelectorAll('.mon-chip.active')].map((c) => Number(c.dataset.d))
         : [],
   };
 
@@ -594,10 +617,34 @@ ed.hasStart.addEventListener('change', () => {
   }
 });
 
+// 是否设置截止日期：不勾就没有期限，同时禁用「最迟开始」和「重复」
+ed.hasDue.addEventListener('change', () => {
+  const on = ed.hasDue.checked;
+  ed.dueRow.hidden = !on;
+  if (!on) {
+    ed.hasStart.checked = false;
+    ed.startRow.hidden = true;
+    ed.repeat.value = '';
+    ed.repeatDaysRow.hidden = true;
+    ed.monthDaysRow.hidden = true;
+  }
+});
+
 // 重复方式切换 -> 显示 / 隐藏星期选择
 ed.repeat.addEventListener('change', () => {
   ed.repeatDaysRow.hidden = ed.repeat.value !== 'weekly';
+  ed.monthDaysRow.hidden = ed.repeat.value !== 'monthly';
 });
+
+// 每月几号：31 个格子，脚本生成，点了切换选中
+const monthChips = document.getElementById('monthChips');
+if (monthChips) {
+  monthChips.innerHTML = Array.from({ length: 31 }, (_, i) => `<button type="button" class="mon-chip" data-d="${i + 1}">${i + 1}</button>`).join('');
+  monthChips.addEventListener('click', (e) => {
+    const b = e.target.closest('.mon-chip');
+    if (b) b.classList.toggle('active');
+  });
+}
 
 // 星期多选
 document.querySelectorAll('.day-chip').forEach((chip) => {
@@ -1097,6 +1144,8 @@ function initSettingsUI() {
 
   $('#btnSettings').addEventListener('click', () => {
     panel.hidden = !panel.hidden;
+    // 设置和「添加待办」互斥：打开设置就把编辑器收掉，避免两个面板叠在一起
+    if (!panel.hidden && !ed.wrap.hidden) closeEditor();
   });
   // 点空白处收起
   document.addEventListener('click', (e) => {

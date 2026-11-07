@@ -63,7 +63,11 @@
 
     <div class="editor" id="editor" hidden>
       <input class="ed-title" id="edTitle" type="text" data-i18n-ph="ed.titlePh" placeholder="任务名称，如：论文初稿" autocomplete="off" />
-      <div class="ed-row">
+      <label class="ed-check">
+        <input type="checkbox" id="edHasDue" checked />
+        <span data-i18n="ed.hasDue">设置截止日期（不勾就是没有期限的待办）</span>
+      </label>
+      <div class="ed-row" id="dueRow">
         <label class="ed-field">
           <span data-i18n="ed.dueDate">截止日期</span>
           <input type="date" id="edDueDate" />
@@ -101,6 +105,7 @@
           <select id="edRepeat">
             <option value="" data-i18n="ed.repeatNone">不重复</option>
             <option value="weekly" data-i18n="ed.repeatWeekly">每周（可多天）</option>
+            <option value="monthly" data-i18n="ed.repeatMonthly">每月（可多天）</option>
           </select>
         </label>
       </div>
@@ -116,6 +121,13 @@
             <button type="button" class="day-chip" data-d="6" data-i18n="day.6" data-i18n-title="day.6.tip" title="每周六提醒（点击切换）">周六</button>
             <button type="button" class="day-chip" data-d="0" data-i18n="day.0" data-i18n-title="day.0.tip" title="每周日提醒（点击切换）">周日</button>
           </div>
+        </div>
+      </div>
+      <div class="ed-row single" id="monthDaysRow" hidden>
+        <div class="ed-field">
+          <span data-i18n="ed.monthDays">每月哪几号（可多选）</span>
+          <div class="mon-chips" id="monthChips"></div>
+          <span class="ed-hint" data-i18n="ed.monthDaysHint">没有这一天的月份按当月最后一天提醒（如 2 月没有 31 号）</span>
         </div>
       </div>
       <div class="ed-btns">

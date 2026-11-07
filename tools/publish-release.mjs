@@ -248,10 +248,26 @@ function uploadAsset(uploadUrl, name, file) {
     return;
   }
 
-  // 3. 上传
-  log(`↑ 上传 ${assetName}（${(assetSize / 1048576).toFixed(0)}MB），慢的话要几分钟…`);
-  const up = await uploadAsset(rel.json.upload_url, assetName, assetPath);
-  if (up.status >= 300) die(`上传失败 ${up.status}: ${up.raw.slice(0, 300)}`);
+  // 3. 上传（网络会断，最多重试 3 次；每次重试前清掉残留的 starter 记录）
+  const MAX_TRY = 3;
+  let up = null;
+  for (let attempt = 1; attempt <= MAX_TRY; attempt++) {
+    log(`↑ 上传 ${assetName}（${(assetSize / 1048576).toFixed(0)}MB，第 ${attempt}/${MAX_TRY} 次）…`);
+    try {
+      up = await uploadAsset(rel.json.upload_url, assetName, assetPath);
+      if (up && up.status < 300 && up.json && up.json.state === 'uploaded') break;
+      log(`  第 ${attempt} 次失败：HTTP ${up && up.status} ${String((up && up.raw) || '').slice(0, 140)}`);
+    } catch (e) {
+      log(`  第 ${attempt} 次网络错误：${e.message}`);
+      up = null;
+    }
+    const again = await api('GET', `${base}/releases/${releaseId}/assets`);
+    for (const a of (again.json || []).filter((x) => x.name === assetName && x.state === 'starter')) {
+      await api('DELETE', `/repos/${slug.owner}/${slug.repo}/releases/assets/${a.id}`);
+    }
+    if (attempt < MAX_TRY) await new Promise((r) => setTimeout(r, 5000));
+  }
+  if (!up || up.status >= 300 || !up.json) die('上传重试 ' + MAX_TRY + ' 次仍失败，过一会儿再跑一次同一条命令即可（会复用已有 release）');
   log(`✓ 上传完成 ${up.json.name}（state=${up.json.state}, ${(up.json.size / 1048576).toFixed(0)}MB）`);
   log(`  ${up.json.browser_download_url}`);
 })().catch((e) => die(e && e.message ? e.message : String(e)));

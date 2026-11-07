@@ -204,6 +204,58 @@ eq(S.localISO(t1), '2026-11-09T18:00', '同一天 9:00 找周一 18:00 -> 当天
 const t2 = S.nextWeeklyTime(+day(2026, 11, 9, 19), [1], 18, 0);
 eq(S.localISO(t2), '2026-11-16T18:00', '同一天 19:00 找周一 18:00 -> 下周一');
 
+/* ---------- 12. 每月重复 ---------- */
+
+// 每月 3/9/21 号：过期后滚到下一个命中日
+const monthly = { repeat: 'monthly', monthDays: [3, 9, 21], due: '2026-11-03T18:00', done: false };
+eq(S.rollTask(monthly, +day(2026, 11, 10)), true, '每月任务过期后会滚动');
+eq(monthly.due, '2026-11-21T18:00', '每月 3/9/21：11-10 之后是 11-21');
+
+// 还没到期时不动
+const monthlyFuture = { repeat: 'monthly', monthDays: [3, 9, 21], due: '2026-11-21T18:00', done: false };
+eq(S.rollTask(monthlyFuture, +day(2026, 11, 10)), false, '每月任务未到期不滚动');
+eq(monthlyFuture.due, '2026-11-21T18:00', '未到期保持原时间');
+
+// 30 号遇到 2 月：落到当月最后一天（不是跳过）
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 2, 1), [30], 18, 0)),
+  '2026-02-28T18:00',
+  '每月 30 号：2 月按 28 号提醒'
+);
+
+// 31 号遇到 4 月（30 天）
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 4, 1), [31], 18, 0)),
+  '2026-04-30T18:00',
+  '每月 31 号：4 月按 30 号提醒'
+);
+
+// 闰年 2 月
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2028, 2, 1), [31], 18, 0)),
+  '2028-02-29T18:00',
+  '每月 31 号：闰年 2 月按 29 号提醒'
+);
+
+// 每月 1 号：跨月
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 11, 10), [1], 18, 0)),
+  '2026-12-01T18:00',
+  '每月 1 号：本月已过则下月'
+);
+
+// 已完成的每月任务到 nextAt 时重置，再继续滚
+const monthlyDone = {
+  repeat: 'monthly',
+  monthDays: [5],
+  due: '2026-10-05T09:00',
+  done: true,
+  nextAt: '2026-11-05T09:00',
+};
+eq(S.rollTask(monthlyDone, +day(2026, 11, 10)), true, '到期的每月任务会被重置');
+eq(monthlyDone.done, false, '重置后回到未完成');
+ok(+new Date(monthlyDone.due) > +day(2026, 11, 10), '重置后落到未来的一次');
+
 console.log(`✓ 时间规则测试通过（${n} 项断言）`);
 console.log('  一年不动的一次性任务：数据不变，继续按“已逾期”显示；');
 console.log('  一年不动的每周任务：落到“现在之后”的同星期时刻，不会回到去年。');
