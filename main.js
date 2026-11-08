@@ -9,6 +9,7 @@ const i18n = require('./renderer/i18n.js');
 const taskData = require('./lib/data.js');
 const backup = require('./lib/backup.js');
 const geometry = require('./lib/geometry.js');
+const fullscreenHide = require('./lib/fullscreen-hide.js');
 
 const HOTKEY = 'Control+Alt+N';
 const HOTKEY_LABEL = 'Ctrl + Alt + N';
@@ -98,6 +99,8 @@ const dbg = (m) => {
   } catch {}
 };
 dbg('module loaded');
+// 部署自检：lib 版本和 main.js 不匹配时，这里能直接从日志看出来（之前就踩过——漏拷 lib，全屏隐藏整个失效）
+dbg('fullscreen-hide: isCaptureTool=' + typeof fullscreenHide.isCaptureTool);
 process.on('uncaughtException', (e) => dbg('uncaught: ' + (e && e.stack)));
 process.on('unhandledRejection', (e) => dbg('rejection: ' + e));
 
@@ -370,6 +373,8 @@ function displayForBounds(saved) {
 /* ---------------- 全屏检测 ---------------- */
 
 let fullscreenProc = null;
+// 全屏时用「不透明度 0 + 鼠标穿透」把便签藏起来（不是真的 win.hide），
+// 这个标记表示现在正处在这种状态：窗口还活着、还在屏幕上，只是看不见。
 let hiddenByFullscreen = false;
 
 // 屏幕取景：Electron 官方推荐走 getDisplayMedia，由主进程挑显示器
@@ -412,46 +417,77 @@ function startFullscreenWatcher() {
       while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i).trim();
         buf = buf.slice(i + 1);
-        if (line === '1' || line === '0') onFullscreen(line === '1');
+        // 探测器输出 "<0|1> <前台 exe>"；旧二进制只有 0/1，也能兼容
+        const parts = line.split(/\s+/);
+        if (parts[0] === '1' || parts[0] === '0') onFullscreen(parts[0] === '1', parts[1] || '');
       }
     });
     fullscreenProc.on('error', (e) => dbg('fullscreen watcher error: ' + e));
-    fullscreenProc.on('exit', (c) => dbg('fullscreen watcher exit ' + c));
+    fullscreenProc.on('exit', (c) => {
+      dbg('fullscreen watcher exit ' + c);
+      // 探测器没了就再也收不到「退出全屏」了，必须现在恢复，否则便签一直看不见
+      if (hiddenByFullscreen) clearFullscreenAlpha('watcher exit');
+    });
     dbg('fullscreen watcher started');
   } catch (e) {
     dbg('fullscreen watcher spawn failed: ' + e);
   }
 }
 
+// 截图 / 录屏工具的浮层也会铺满屏幕，但那是「假全屏」：探测器的输出里带着前台 exe，
+// 这类进程直接跳过（见 lib/fullscreen-hide.js 的 isCaptureTool），所以真正的全屏应用可以藏得很快。
+// 剩下的 150ms 只用来挡「未知窗口的一闪而过」，不再是挡截图浮层的主力。
+// 进全屏到隐藏的最坏时间：40ms 轮询 + 150ms 防抖 ≈ 0.19s。
+const FULLSCREEN_HIDE_DELAY = 150;
 let fullscreenHideTimer = null;
 
-function onFullscreen(on) {
+// 全屏隐藏 / 恢复：只改窗口不透明度和鼠标穿透，不 hide / show（原因见 lib/fullscreen-hide.js）
+function setFullscreenAlpha(on) {
   if (!win || win.isDestroyed()) return;
-  dbg('fullscreen=' + on);
+  if (on) fullscreenHide.hide(win);
+  else fullscreenHide.restore(win, state.settings.opacity ?? 1);
+}
+
+// 从「全屏隐藏」里退出来：清掉待定的隐藏定时器，把不透明度和鼠标事件恢复回去。
+// 返回 true 表示这次真的退出了（调用方据此决定要不要补一次 show）。
+function clearFullscreenAlpha(reason) {
+  if (fullscreenHideTimer) {
+    clearTimeout(fullscreenHideTimer);
+    fullscreenHideTimer = null;
+  }
+  if (!hiddenByFullscreen) return false;
+  hiddenByFullscreen = false;
+  setFullscreenAlpha(false);
+  refreshTrayMenu();
+  const alive = win && !win.isDestroyed();
+  dbg(
+    'fullscreen -> restored (' + reason + ') opacity=' + (alive ? win.getOpacity() : '?') +
+      ' visible=' + (alive ? win.isVisible() : '?')
+  );
+  return true;
+}
+
+function onFullscreen(on, exe) {
+  if (!win || win.isDestroyed()) return;
+  // 用可选调用：万一 lib 是旧版本也不会把整个全屏隐藏带崩，只是没有截图工具过滤
+  const captureTool = !!(on && typeof fullscreenHide.isCaptureTool === 'function' && fullscreenHide.isCaptureTool(exe));
+  dbg('fullscreen=' + on + ' exe=' + (exe || '-') + (captureTool ? ' (capture tool, ignored)' : ''));
   if (on) {
+    if (captureTool) return;
     if (!state.settings.hideOnFullscreen) return;
-    if (!win.isVisible()) return;
-    // 截图 / 录屏工具的浮层也常常铺满屏幕，只持续一两百毫秒。
-    // 等 1.2 秒还全屏才隐藏，避免截图时便签闪一下。
+    if (!win.isVisible() || hiddenByFullscreen) return;
     if (!fullscreenHideTimer) {
       fullscreenHideTimer = setTimeout(() => {
         fullscreenHideTimer = null;
         if (!win || win.isDestroyed() || !win.isVisible()) return;
         hiddenByFullscreen = true;
-        win.hide();
+        setFullscreenAlpha(true);
         refreshTrayMenu();
-        dbg('fullscreen -> hidden');
-      }, 1200);
+        dbg('fullscreen -> alpha hidden visible=' + win.isVisible() + ' opacity=' + win.getOpacity());
+      }, FULLSCREEN_HIDE_DELAY);
     }
   } else {
-    if (fullscreenHideTimer) {
-      clearTimeout(fullscreenHideTimer);
-      fullscreenHideTimer = null;
-    }
-    if (!hiddenByFullscreen) return;
-    hiddenByFullscreen = false;
-    win.showInactive();
-    refreshTrayMenu();
+    clearFullscreenAlpha('fullscreen off');
   }
 }
 
@@ -879,6 +915,8 @@ function handleDockMove() {
 function startDockWatcher() {
   setInterval(() => {
     if (!win || win.isDestroyed()) return;
+    // 全屏隐藏期间窗口还在屏幕上，但用户看不见，别再按光标位置自动收起 / 展开
+    if (hiddenByFullscreen) return;
     const b = win.getBounds();
     const area = screen.getDisplayMatching(b).workArea;
 
@@ -948,6 +986,13 @@ function startDockWatcher() {
 
 function toggleWindow() {
   if (!win) return;
+  // 全屏隐藏是「不透明度 0」：窗口其实还在屏幕上，这时点托盘 / 按快捷键应当直接把它显出来
+  if (clearFullscreenAlpha('tray/hotkey')) {
+    if (!win.isVisible()) win.show();
+    win.focus();
+    refreshTrayMenu();
+    return;
+  }
   if (win.isVisible() && !win.isMinimized()) {
     win.hide();
   } else {
@@ -982,7 +1027,7 @@ function trayIcon() {
 
 function refreshTrayMenu() {
   if (!tray) return;
-  const visible = !!win && win.isVisible();
+  const visible = !!win && win.isVisible() && !hiddenByFullscreen;
   tray.setToolTip(i18n.t('tray.tip', { hotkey: HOTKEY_LABEL }));
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -1678,6 +1723,75 @@ if (!gotLock) {
 
     createWindow();
     dbg('window created');
+
+    // 全屏隐藏（透明方案）自测：本机没法人肉按 F11，按时间线直接驱动 onFullscreen()，
+    // 每个阶段往 boot.log 写一行 FSTEST，截图工具按行取图比对。
+    if (process.argv.includes('--test-fullscreen')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const snap = (tag) => {
+        const b = win.getBounds();
+        const d = screen.getDisplayMatching(b);
+        dbg(
+          'FSTEST ' + tag + ' :: ' +
+            JSON.stringify({
+              visible: win.isVisible(),
+              hwnd: win.getNativeWindowHandle().readBigUInt64LE(0).toString(),
+              opacity: win.getOpacity(),
+              hiddenByFullscreen,
+              bounds: b,
+              scale: d.scaleFactor,
+            })
+        );
+      };
+      (async () => {
+        await wait(1600);
+        // 放到屏幕中间偏上：不贴顶（避免自动收起），截图比对也有固定位置
+        setBoundsQuiet({ x: 200, y: 240, width: winW(), height: winH() });
+        await wait(600);
+        snap('before');
+        await wait(4000);
+        onFullscreen(true);
+        await wait(FULLSCREEN_HIDE_DELAY + 600);
+        snap('alpha-hidden');
+        await wait(4000);
+        onFullscreen(false);
+        await wait(400);
+        snap('restored');
+        await wait(4000);
+        // 真隐藏作对照：屏幕上应该同样看不到便签
+        win.hide();
+        await wait(600);
+        snap('real-hidden');
+        await wait(4000);
+        win.show();
+        win.focus();
+        await wait(500);
+        snap('shown-again');
+        await wait(3500);
+        // 全屏中用户点托盘 / 按快捷键：应当是「把便签显出来」，而不是再藏一次
+        onFullscreen(true);
+        await wait(FULLSCREEN_HIDE_DELAY + 600);
+        toggleWindow();
+        await wait(500);
+        snap('tray-toggle-during-fullscreen');
+        onFullscreen(false);
+        await wait(300);
+        // 截图 / 录屏工具的「假全屏」：exe 在名单里，必须完全不触发隐藏
+        onFullscreen(true, 'snippingtool.exe');
+        await wait(600);
+        snap('capture-tool');
+        onFullscreen(false, 'snippingtool.exe');
+        await wait(200);
+        // 短于防抖（150ms）的一闪而过也不该隐藏
+        onFullscreen(true);
+        await wait(80);
+        onFullscreen(false);
+        await wait(250);
+        snap('brief-fullscreen');
+        snap('done');
+        dbg('FSTEST done');
+      })();
+    }
 
     // 启动后静默检查一次更新（失败只进日志，不打扰）
     setTimeout(() => autoCheckUpdate('startup'), 5000);

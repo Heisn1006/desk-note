@@ -12,5 +12,7 @@ node tools\geometry-check.js
 if errorlevel 1 exit /b 1
 node tools\crop-check.js
 if errorlevel 1 exit /b 1
+node tools\fullscreen-check.js
+if errorlevel 1 exit /b 1
 echo.
 echo ALL CHECKS PASSED
