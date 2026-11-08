@@ -4,14 +4,16 @@
 /* DeskNote 发行助手：建 Release + 上传安装包，一条命令搞定。
  *
  * 用法：
- *   node tools/publish-release.mjs 0.2.15              # 建/更新 v0.2.15 并上传附件
- *   node tools/publish-release.mjs 0.2.15 --dry-run    # 只检查，不上传
- *   node tools/publish-release.mjs                     # 用 package.json 里的版本
+ *   node dev/tools/publish-release.mjs 0.2.15              # 建/更新 v0.2.15 并上传附件
+ *   node dev/tools/publish-release.mjs 0.2.15 --dry-run    # 只检查，不上传
+ *   node dev/tools/publish-release.mjs                     # 用 package.json 里的版本
  *
  * 依赖：
  *   - 仓库里有 origin remote（用来推 owner/repo）
  *   - 凭据：优先 GITHUB_TOKEN 环境变量，否则从 `git credential fill` 取（Git Credential Manager 已授权过就行）
  *   - 安装包：DESKNOTE_SETUP_DIR\DeskNote-<ver>.setup.zip，没有就退回 dist\DeskNote-v<ver>-portable.zip
+ *   - **凭据扫描**：上传前必须用 DSH 插件 dsh-leak-guard 的 leak_guard 扫一遍（仓库 + dist/DeskNote/resources/app），
+ *     确认 ok=true 后设 LEAK_SCAN_OK=1；本脚本不带这个变量会直接拒绝上传（--dry-run 除外）。
  */
 
 import fs from 'node:fs';
@@ -36,7 +38,17 @@ function die(msg) {
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const version = (process.argv[2] || pkg.version || '').replace(/^v/i, '').trim();
-if (!version) die('没有版本号：`node tools/publish-release.mjs 0.2.15`');
+if (!version) die('没有版本号：`node dev/tools/publish-release.mjs 0.2.15`');
+
+// 发版前必须先用 leak_guard 扫描（用户 2026-11-08 定的规矩）：
+// 这个闸门故意做成「不设变量就停」，避免以后哪次顺手直接上传。
+if (!DRY && process.env.LEAK_SCAN_OK !== '1') {
+  die(
+    '上传前先做凭据扫描：用 DSH 插件 dsh-leak-guard 的 leak_guard 扫描 desk-note 与 dist/DeskNote/resources/app，\n' +
+      '确认 ok=true 后再设 LEAK_SCAN_OK=1 重跑本脚本（见交接文档 §7）。'
+  );
+}
+log('✓ 凭据扫描闸门通过（LEAK_SCAN_OK=1）');
 
 const tag = process.env.RELEASE_TAG || `v${version}`;
 const TITLE = `DeskNote ${version}`;
