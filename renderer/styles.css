@@ -1155,6 +1155,20 @@ body.rolling #card {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .mon-chip:hover { border-color: var(--chip, var(--accent)); color: var(--chip, var(--accent)); }
+.ymon-chip {
+  padding: 3px 0;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ymon-chip:hover { border-color: var(--chip, var(--accent)); color: var(--chip, var(--accent)); }
+.ymon-chip.active { background: var(--chip, var(--accent)); border-color: var(--chip, var(--accent)); color: #fff; font-weight: 700; }
 .mon-chip.active { background: var(--chip, var(--accent)); border-color: var(--chip, var(--accent)); color: #fff; font-weight: 700; }
 .ed-hint { font-size: 9px; line-height: 1.45; opacity: 0.55; }
 

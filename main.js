@@ -178,12 +178,27 @@ let state = null;
  * ------------------------------------------------------------------ */
 
 function autostartCommand() {
-  return app.isPackaged
-    ? `"${process.execPath}" --hidden`
-    : `"${process.execPath}" "${app.getAppPath()}" --hidden`;
+  // 开机启动直接显示便签（不再带 --hidden）：带 --hidden 时只会在托盘里留图标，
+  // 用户得手动点一下才看得见，容易被当成没启动
+  return app.isPackaged ? `"${process.execPath}"` : `"${process.execPath}" "${app.getAppPath()}"`;
 }
 
 const REG_EXE = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe');
+
+// 读当前自启命令原文（拿不到返回空串）
+function autostartRaw() {
+  try {
+    const out = execFileSync(REG_EXE, ['query', RUN_KEY, '/v', RUN_VALUE], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 3000,
+      windowsHide: true,
+    }).toString();
+    const m = out.match(/REG_SZ\s+([^\r\n]*)/i);
+    return m ? m[1].trim() : '';
+  } catch {
+    return '';
+  }
+}
 
 function isAutostart() {
   try {
@@ -408,17 +423,32 @@ function startFullscreenWatcher() {
   }
 }
 
+let fullscreenHideTimer = null;
+
 function onFullscreen(on) {
   if (!win || win.isDestroyed()) return;
   dbg('fullscreen=' + on);
   if (on) {
     if (!state.settings.hideOnFullscreen) return;
-    if (win.isVisible()) {
-      hiddenByFullscreen = true;
-      win.hide();
-      refreshTrayMenu();
+    if (!win.isVisible()) return;
+    // 截图 / 录屏工具的浮层也常常铺满屏幕，只持续一两百毫秒。
+    // 等 1.2 秒还全屏才隐藏，避免截图时便签闪一下。
+    if (!fullscreenHideTimer) {
+      fullscreenHideTimer = setTimeout(() => {
+        fullscreenHideTimer = null;
+        if (!win || win.isDestroyed() || !win.isVisible()) return;
+        hiddenByFullscreen = true;
+        win.hide();
+        refreshTrayMenu();
+        dbg('fullscreen -> hidden');
+      }, 1200);
     }
-  } else if (hiddenByFullscreen) {
+  } else {
+    if (fullscreenHideTimer) {
+      clearTimeout(fullscreenHideTimer);
+      fullscreenHideTimer = null;
+    }
+    if (!hiddenByFullscreen) return;
     hiddenByFullscreen = false;
     win.showInactive();
     refreshTrayMenu();
@@ -736,13 +766,15 @@ function createWindow() {
  * 贴顶自动收起（类 QQ 早期行为）
  * ------------------------------------------------------------------ */
 
-const DOCK_EDGE = 10;      // 距离屏幕顶部多少像素算“贴顶”
+const DOCK_EDGE = 4;       // 距离屏幕顶部多少像素算“贴顶”（收窄：以前 10px 太容易触发）
 const DOCK_STRIP = 6;      // 收起后露出的高度
 let docked = false;
 let dockedExpanded = true;
 let dockCooldownUntil = 0;
 let miniActive = false;
 let dockHeight = 600;
+let dockX = null;        // 贴顶当时的 x，用来识别横向拖动
+let dockSuppressUntil = 0;  // 横向拖走后的冷却：这段时间内不再自动贴顶
 let collapseTimer = null;
 let programmatic = false;
 
@@ -760,13 +792,10 @@ let rollToken = 0;
 
 // 收起/展开：内容用 clip-path 在合成层动画（跟随刷新率），结束后再一次性改窗口尺寸
 function canonicalBounds(height) {
-  const b = (state.settings && state.settings.bounds) || {};
-  return {
-    x: Number.isFinite(b.x) ? Math.round(b.x) : win.getBounds().x,
-    y: Number.isFinite(b.y) ? Math.round(b.y) : win.getBounds().y,
-    width: winW(),
-    height: Math.round(height),
-  };
+  // 用窗口当前位置，不要用 settings.bounds：贴顶时窗口已经被移到 y=0，
+  // 用旧坐标会让收起后的迷你条跳回原来的高度（看起来浮在半空）
+  const cur = win.getBounds();
+  return { x: Math.round(cur.x), y: Math.round(cur.y), width: winW(), height: Math.round(height) };
 }
 
 function rollTo(collapsed, done) {
@@ -813,14 +842,33 @@ function handleDockMove() {
   const b = win.getBounds();
   const area = screen.getDisplayMatching(b).workArea;
 
+  // 收起态贴顶后不允许再往上拖：卡在贴顶高度，避免把窗口拖出屏幕/拖坏
+  if (miniActive && b.y < area.y) {
+    setBoundsQuiet({ x: b.x, y: area.y, width: b.width, height: b.height });
+    return;
+  }
+
+  // 贴顶状态下横向拖走 = 用户想换个位置，直接脱离贴顶，避免「拖到右边自己收起」
+  if (docked && dockX !== null && Math.abs(b.x - dockX) > 24) {
+    docked = false;
+    dockedExpanded = true;
+    dockX = null;
+    dockSuppressUntil = Date.now() + 2000;
+    dbg('dock: detached by horizontal drag');
+    return;
+  }
+  if (dockX !== null && !docked) dockX = null;
+
   if (b.y <= area.y + DOCK_EDGE) {
     if (!docked) dbg('dock: attached');
     docked = true;
     dockedExpanded = true;
     if (b.height > 60) dockHeight = b.height;
+    if (dockX === null) dockX = b.x;
     setBoundsQuiet({ x: b.x, y: area.y, width: b.width, height: Math.max(dockHeight, 60) });
   } else if (docked && b.y > area.y + 70) {
     docked = false;
+    dockX = null;
     dbg('dock: detached');
     if (b.height <= DOCK_STRIP + 2) {
       setBoundsQuiet({ x: b.x, y: area.y + 80, width: b.width, height: dockHeight });
@@ -837,9 +885,10 @@ function startDockWatcher() {
 
     // 贴顶检测（不依赖 moved 事件）
     if (!programmatic) {
-      if (!docked && b.y >= area.y - 30 && b.y <= area.y + DOCK_EDGE) {
+      if (!docked && Date.now() > dockSuppressUntil && b.y >= area.y - 6 && b.y <= area.y + DOCK_EDGE) {
         docked = true;
         dockedExpanded = true;
+        dockX = b.x;
 
         dbg('dock: attached');
         programmatic = true;
@@ -971,6 +1020,15 @@ function refreshTrayMenu() {
         },
       },
       { type: 'separator' },
+      {
+        label: i18n.t('tray.restart'),
+        click: () => {
+          dbg('restart via tray');
+          quitting = true;
+          app.relaunch({ args: process.argv.slice(1) });
+          app.exit(0);
+        },
+      },
       {
         label: i18n.t('tray.quit'),
         click: () => {
@@ -1637,9 +1695,14 @@ if (!gotLock) {
         const actual = isAutostart();
         dbg('autostart check: settings=' + state.settings.autostart + ' actual=' + actual);
         // 只补写，不主动删除：避免误删用户已在别处配置的自启项
-        if (state.settings.autostart && !actual) {
-          const ok = setAutostart(true);
-          dbg('autostart write -> ' + ok);
+        if (state.settings.autostart) {
+          const want = autostartCommand();
+          const now = autostartRaw();
+          if (!actual || (now && now !== want)) {
+            // 老版本注册的可能是带 --hidden 的命令，按当前版本重写一次
+            const ok = setAutostart(true);
+            dbg('autostart write -> ' + ok + ' (old=' + now + ')');
+          }
         }
       } catch (e) {
         dbg('autostart sync failed: ' + e);

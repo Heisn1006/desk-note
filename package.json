@@ -1,6 +1,6 @@
 {
   "name": "desk-note",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "description": "悬浮桌面便签：日程 / 任务 / 截止倒计时",
   "main": "main.js",
   "private": true,

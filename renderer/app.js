@@ -468,6 +468,7 @@ const ed = {
   startRow: $('#startRow'),
   repeatDaysRow: $('#repeatDaysRow'),
   monthDaysRow: $('#monthDaysRow'),
+  monthDaysInput: $('#edMonthDays'),
   hasDue: $('#edHasDue'),
   dueRow: $('#dueRow'),
   save: $('#edSave'),
@@ -492,6 +493,11 @@ function readTimeFields(hEl, mEl) {
   const h = Math.max(0, Math.min(23, Number(hEl && hEl.value) || 0));
   const m = Math.max(0, Math.min(59, Number(mEl && mEl.value) || 0));
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// "3, 9,21" / "3 9 21" -> [3, 9, 21]（去重、排序、只留 1-31）
+function parseDayList(raw) {
+  return [...new Set(String(raw || '').split(/[^\d]+/).map(Number).filter((n) => n >= 1 && n <= 31))].sort((a, b) => a - b);
 }
 
 function openEditor(task) {
@@ -521,8 +527,10 @@ function openEditor(task) {
     ed.repeatDaysRow.hidden = ed.repeat.value !== 'weekly';
     ed.monthDaysRow.hidden = ed.repeat.value !== 'monthly';
     const mdays = Array.isArray(task.monthDays) ? task.monthDays : [];
-    document.querySelectorAll('.mon-chip').forEach((chip) => {
-      chip.classList.toggle('active', mdays.includes(Number(chip.dataset.d)));
+    if (ed.monthDaysInput) ed.monthDaysInput.value = mdays.join(', ');
+    const mmonths = Array.isArray(task.monthlyMonths) ? task.monthlyMonths : [];
+    document.querySelectorAll('.ymon-chip').forEach((chip) => {
+      chip.classList.toggle('active', mmonths.includes(Number(chip.dataset.m)));
     });
     if (task.startAt) {
       const s = new Date(task.startAt);
@@ -544,7 +552,8 @@ function openEditor(task) {
     ed.startRow.hidden = true;
     ed.repeat.value = '';
     document.querySelectorAll('.day-chip').forEach((chip) => chip.classList.remove('active'));
-    document.querySelectorAll('.mon-chip').forEach((chip) => chip.classList.remove('active'));
+    if (ed.monthDaysInput) ed.monthDaysInput.value = '';
+    document.querySelectorAll('.ymon-chip').forEach((chip) => chip.classList.remove('active'));
     ed.repeatDaysRow.hidden = true;
     ed.monthDaysRow.hidden = true;
   }
@@ -587,11 +596,37 @@ function saveEditor() {
       hasDue && ed.repeat.value === 'weekly'
         ? [...document.querySelectorAll('.day-chip.active')].map((c) => Number(c.dataset.d))
         : [],
-    monthDays:
+    monthDays: hasDue && ed.repeat.value === 'monthly' ? parseDayList(ed.monthDaysInput && ed.monthDaysInput.value) : [],
+    monthlyMonths:
       hasDue && ed.repeat.value === 'monthly'
-        ? [...document.querySelectorAll('.mon-chip.active')].map((c) => Number(c.dataset.d))
+        ? [...document.querySelectorAll('.ymon-chip.active')].map((c) => Number(c.dataset.m))
         : [],
   };
+
+  // 方案 A：每月重复时，若截止日期不符合「月份+几号」，自动对齐到下一次命中
+  if (hasDue && ed.repeat.value === 'monthly' && fields.monthDays.length) {
+    const dueTs = +new Date(fields.due);
+    const next = window.deskSchedule.nextMonthlyTime(
+      dueTs - 60000,
+      fields.monthDays,
+      new Date(fields.due).getHours(),
+      new Date(fields.due).getMinutes(),
+      fields.monthlyMonths
+    );
+    if (next) {
+      const aligned = window.deskSchedule.localISO(next);
+      if (aligned !== fields.due) fields.due = aligned;
+    }
+  }
+
+  // 每周同理：截止日期的星期不在选中列表里 -> 对齐到下一个选中的星期
+  if (hasDue && ed.repeat.value === 'weekly' && fields.repeatDays.length) {
+    const d0 = new Date(fields.due);
+    if (!fields.repeatDays.includes(d0.getDay())) {
+      const nextW = window.deskSchedule.nextWeeklyTime(+d0 - 60000, fields.repeatDays, d0.getHours(), d0.getMinutes());
+      if (nextW) fields.due = window.deskSchedule.localISO(nextW);
+    }
+  }
 
   if (editingId) {
     const t = tasks.find((x) => x.id === editingId);
@@ -636,12 +671,12 @@ ed.repeat.addEventListener('change', () => {
   ed.monthDaysRow.hidden = ed.repeat.value !== 'monthly';
 });
 
-// 每月几号：31 个格子，脚本生成，点了切换选中
-const monthChips = document.getElementById('monthChips');
-if (monthChips) {
-  monthChips.innerHTML = Array.from({ length: 31 }, (_, i) => `<button type="button" class="mon-chip" data-d="${i + 1}">${i + 1}</button>`).join('');
-  monthChips.addEventListener('click', (e) => {
-    const b = e.target.closest('.mon-chip');
+// 哪几个月：12 个格子，不选＝每个月都算
+const monthOfYearChips = document.getElementById('monthOfYearChips');
+if (monthOfYearChips) {
+  monthOfYearChips.innerHTML = Array.from({ length: 12 }, (_, i) => `<button type="button" class="ymon-chip" data-m="${i + 1}">${i + 1}月</button>`).join('');
+  monthOfYearChips.addEventListener('click', (e) => {
+    const b = e.target.closest('.ymon-chip');
     if (b) b.classList.toggle('active');
   });
 }

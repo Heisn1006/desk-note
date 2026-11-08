@@ -34,13 +34,16 @@
   const lastDayOf = (y, m) => new Date(y, m + 1, 0).getDate();
 
   // nowTs 之后最近的、日期（几号）落在 daysOfMonth 里的时刻
+  // months 为空 = 每个月都算；否则只在选中的月份里找（1-12）
   // 没有这一天的月份（2 月没有 30/31 号）按「当月最后一天」算，不会被跳过
-  function nextMonthlyTime(fromTs, daysOfMonth, hh, mm) {
+  function nextMonthlyTime(fromTs, daysOfMonth, hh, mm, months) {
     const base = new Date(fromTs);
     const wanted = daysOfMonth.slice();
-    for (let i = 0; i <= 62; i++) {
+    const wantMonths = Array.isArray(months) && months.length ? months : null;
+    for (let i = 0; i <= 400; i++) {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i, hh, mm, 0, 0);
       if (+d <= fromTs) continue;
+      if (wantMonths && wantMonths.indexOf(d.getMonth() + 1) < 0) continue;
       const last = lastDayOf(d.getFullYear(), d.getMonth());
       if (wanted.some((w) => Math.min(w, last) === d.getDate())) return d;
     }
@@ -87,7 +90,8 @@
             nowTs,
             Array.isArray(t.monthDays) && t.monthDays.length ? t.monthDays : [due.getDate()],
             due.getHours(),
-            due.getMinutes()
+            due.getMinutes(),
+            t.monthlyMonths
           );
     if (!next) return changed;
 

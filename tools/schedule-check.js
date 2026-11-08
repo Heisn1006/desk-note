@@ -256,6 +256,40 @@ eq(S.rollTask(monthlyDone, +day(2026, 11, 10)), true, '到期的每月任务会�
 eq(monthlyDone.done, false, '重置后回到未完成');
 ok(+new Date(monthlyDone.due) > +day(2026, 11, 10), '重置后落到未来的一次');
 
+/* ---------- 13. 每月重复：指定月份 ---------- */
+
+// 只在 3/6/9/12 月的 5、20 号：1 月出发应落到 3 月 5 号
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 1, 10), [5, 20], 9, 0, [3, 6, 9, 12])),
+  '2026-03-05T09:00',
+  '指定月份：只在 3/6/9/12 月，1 月出发落到 3-05'
+);
+
+// 不选月份 = 每个月
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 1, 10), [3, 20], 9, 0, [])),
+  '2026-01-20T09:00',
+  '不选月份：每月都算，1-10 之后是 1-20'
+);
+
+// 只选 2 月 + 30 号：月末回落
+eq(
+  S.localISO(S.nextMonthlyTime(+day(2026, 1, 10), [30], 9, 0, [2])),
+  '2026-02-28T09:00',
+  '只选 2 月的 30 号：落到 2-28'
+);
+
+// 只选 12 月：要跨近一年才命中
+ok(
+  +new Date(S.localISO(S.nextMonthlyTime(+day(2026, 1, 10), [1], 9, 0, [12]))) > +day(2026, 11, 1),
+  '只选 12 月：下一次在 12 月，跨了大半年'
+);
+
+// rollTask 会带上 monthlyMonths
+const tMonths = { repeat: 'monthly', monthDays: [5], monthlyMonths: [12], due: '2026-01-05T09:00', done: false };
+eq(S.rollTask(tMonths, +day(2026, 1, 10)), true, '指定月份的任务过期后会滚动');
+eq(tMonths.due, '2026-12-05T09:00', '每月 12 月 5 号：滚到当年 12-05');
+
 console.log(`✓ 时间规则测试通过（${n} 项断言）`);
 console.log('  一年不动的一次性任务：数据不变，继续按“已逾期”显示；');
 console.log('  一年不动的每周任务：落到“现在之后”的同星期时刻，不会回到去年。');

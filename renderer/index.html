@@ -125,8 +125,10 @@
       </div>
       <div class="ed-row single" id="monthDaysRow" hidden>
         <div class="ed-field">
-          <span data-i18n="ed.monthDays">每月哪几号（可多选）</span>
-          <div class="mon-chips" id="monthChips"></div>
+          <span data-i18n="ed.monthlyMonths">哪几个月（不选＝每个月）</span>
+          <div class="mon-chips" id="monthOfYearChips"></div>
+          <span data-i18n="ed.monthDays">每月哪几号（用逗号隔开，如 3, 9, 21）</span>
+          <input class="ed-text" id="edMonthDays" type="text" placeholder="例：3, 9, 21" autocomplete="off" />
           <span class="ed-hint" data-i18n="ed.monthDaysHint">没有这一天的月份按当月最后一天提醒（如 2 月没有 31 号）</span>
         </div>
       </div>
