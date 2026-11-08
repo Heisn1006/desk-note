@@ -4,7 +4,7 @@ Dim sh, fso, base, exePath
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
-base = fso.GetParentFolderName(WScript.ScriptFullName)
+base = fso.GetParentFolderName(WScript.ScriptFullName) & "\.."
 exePath = base & "\node_modules\electron\dist\electron.exe"
 
 sh.CurrentDirectory = base
