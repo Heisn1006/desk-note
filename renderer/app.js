@@ -1551,6 +1551,8 @@ async function maybeNotify(reminding, now) {
 
     rollWeekly(new Date());
     render();
+    // 主进程按上次退出时的形态建的窗口：收起态要在第一帧就把迷你布局套上
+    if (window.desk.initialMini) applyMiniUI(true);
     if (location.hash === '#edit') openEditor(null);
     if (location.hash === '#mini') setMini(true);
     if (location.hash === '#settings') {

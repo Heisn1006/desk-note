@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, Notification, dialog, desktopCapturer, session, shell, net } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen, Notification, dialog, desktopCapturer, session, shell, net, powerMonitor } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync, spawn } = require('node:child_process');
@@ -559,6 +559,9 @@ function ensureOnScreen(reason) {
 }
 
 function createWindow() {
+  // 上次退出时是展开还是收起：收起就直接按迷你条高度创建，避免开机先闪一下大卡片
+  const startMini = !!state.settings.collapsed;
+  miniActive = startMini;
   const saved = state.settings.bounds;
   const hasSaved = !!(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y));
   const display = displayForBounds(hasSaved ? saved : null);
@@ -577,9 +580,19 @@ function createWindow() {
     saveState('bounds');
   }
 
+  // 上次退出是「贴顶 + 收起」：直接把贴顶态也恢复好，
+  // 否则贴顶检测一跑就会按展开高度重设窗口，迷你条被撑开。
+  if (startMini && y <= area.y + DOCK_EDGE) {
+    docked = true;
+    dockedExpanded = false;
+    dockX = x;
+    dockHeight = winH();
+    dbg('start mini+docked at x=' + x);
+  }
+
   win = new BrowserWindow({
     width: winW(),
-    height: winH(),
+    height: startMini ? miniH() : winH(),
     x: Math.round(x),
     y: Math.round(y),
     minWidth: 120,
@@ -600,6 +613,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
+      // 初始迷你态通过启动参数传给 preload（did-finish-load 再发 mini:state 可能太晚，会先画一帧大卡片）
+      additionalArguments: startMini ? ['--desk-initial-mini'] : [],
     },
   });
 
@@ -839,6 +854,11 @@ function rollTo(collapsed, done) {
   // 动画期间 + 之后 700ms 内不再响应悬停，避免“刚收起又展开”的抖动
   dockCooldownUntil = Date.now() + 700;
   miniActive = collapsed;          // 统一在这里维护迷你态，缩放时据此决定高度
+  // 收起/展开要跨进程记住：关机、重启、开机自启回来后还是同一个形态
+  if (!!state.settings.collapsed !== !!collapsed) {
+    state.settings.collapsed = !!collapsed;
+    saveState('mini');
+  }
   const token = ++rollToken;
   const targetH = collapsed ? miniH() : winH();
 
@@ -901,7 +921,7 @@ function handleDockMove() {
     dockedExpanded = true;
     if (b.height > 60) dockHeight = b.height;
     if (dockX === null) dockX = b.x;
-    setBoundsQuiet({ x: b.x, y: area.y, width: b.width, height: Math.max(dockHeight, 60) });
+    setBoundsQuiet({ x: b.x, y: area.y, width: b.width, height: miniActive ? miniH() : Math.max(dockHeight, 60) });
   } else if (docked && b.y > area.y + 70) {
     docked = false;
     dockX = null;
@@ -930,7 +950,7 @@ function startDockWatcher() {
 
         dbg('dock: attached');
         programmatic = true;
-        win.setBounds({ x: b.x, y: area.y, width: b.width, height: winH() });
+        win.setBounds({ x: b.x, y: area.y, width: b.width, height: miniActive ? miniH() : winH() });
         setTimeout(() => {
           programmatic = false;
         }, 200);
@@ -1793,6 +1813,30 @@ if (!gotLock) {
       })();
     }
 
+    // 迷你态（展开/收起）持久化自测：node dev/tools/mini-persist-check.js
+    // 用法：--test-mini-persist=read|collapse|expand，读完/操作完自己退出
+    const miniTestArg = process.argv.find((a) => a.startsWith('--test-mini-persist'));
+    if (miniTestArg) {
+      const phase = miniTestArg.includes('=') ? miniTestArg.split('=')[1] : 'read';
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      setTimeout(async () => {
+        const snap = (tag) => dbg('MINITEST ' + tag + ' :: ' + JSON.stringify({
+          bounds: win.getBounds(),
+          miniActive,
+          setting: !!(state.settings && state.settings.collapsed),
+        }));
+        snap(phase + '-start');
+        if (phase === 'collapse' || phase === 'expand') {
+          const on = phase === 'collapse';
+          rollTo(on, () => { miniActive = on; win.webContents.send('mini:state', on); });
+          await wait(900);
+          snap(phase + '-after');
+        }
+        quitting = true;   // 绕过 close 事件里的「隐藏到托盘」
+        app.quit();
+      }, 1600);
+    }
+
     // 启动后静默检查一次更新（失败只进日志，不打扰）
     setTimeout(() => autoCheckUpdate('startup'), 5000);
 
@@ -1800,6 +1844,18 @@ if (!gotLock) {
     for (const ev of ['display-removed', 'display-added', 'display-metrics-changed']) {
       screen.on(ev, () => ensureOnScreen(ev));
     }
+
+    // 睡眠 / 唤醒：进程不重启，迷你态本来就在内存里；这里记录一下（方便排查「醒来变展开」这类反馈），
+    // 顺手把窗口拉回可见区域——唤醒时显示器配置可能变过。
+    powerMonitor.on('suspend', () => {
+      const b = win && !win.isDestroyed() ? win.getBounds() : null;
+      dbg('power suspend mini=' + miniActive + ' bounds=' + JSON.stringify(b));
+    });
+    powerMonitor.on('resume', () => {
+      if (!win || win.isDestroyed()) return;
+      dbg('power resume mini=' + miniActive + ' bounds=' + JSON.stringify(win.getBounds()) + ' visible=' + win.isVisible());
+      ensureOnScreen('resume');
+    });
     createTray();
     dbg('tray created');
 

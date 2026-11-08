@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('desk', {
   importData: () => ipcRenderer.invoke('data:import'),
   hide: () => ipcRenderer.send('win:hide'),
   quit: () => ipcRenderer.send('win:quit'),
+  // 启动时主进程按上次退出形态建窗口；这个标记让渲染进程第一帧就用迷你布局
+  initialMini: process.argv.includes('--desk-initial-mini'),
   onSettingsChanged: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onMiniState: (cb) => ipcRenderer.on('mini:state', (_e, on) => cb(!!on)),
   onRollAnimate: (cb) => ipcRenderer.on('roll:animate', (_e, p) => cb(p)),
