@@ -2,6 +2,19 @@
 
 贴在桌面上的小卡片，显示最近的日程、任务和截止倒计时。
 
+## 仓库结构
+
+| 路径 | 内容 |
+| --- | --- |
+| 根目录 | `main.js`、`preload.js`、`renderer/`、`lib/`、`bin/` —— 便签本体与插件宿主 |
+| `dev/` | 测试与构建：`dev/check-all.cmd`、`dev/tools/*`（node 测试、冒烟、发版脚本、C# 工具源码） |
+| `plugins/` | 插件运行时槽位：只留 `lock.json` + `README.md`，插件源码**不在本仓库** |
+| `dist/` | 打包产物（不入库） |
+
+插件本体在独立仓库 **https://github.com/Heisn1006/desk-note-plugins** （壁纸穿透及其探测工具）。
+构建/打包前先拉插件：`node dev\tools\fetch-plugins.mjs`（离线可用 `--from ..\desk-note-plugins`）。
+安装包里仍然内置插件，用户端不需要下载。
+
 ## 怎么打开
 
 - **桌面快捷方式**：`DeskNote 便签`（双击即可，不会弹黑框）
@@ -47,10 +60,10 @@
 ## 插件
 
 - 设置 → 插件 → 插件管理：开关立即生效，垃圾桶卸载插件（删除插件文件）。
-- 内置插件「壁纸穿透」：把桌面壁纸按真实位置映射到便签背景，窗口移动时壁纸跟着走，换壁纸自动更新。
+- 内置插件「壁纸穿透」：把桌面壁纸按真实位置映射到便签背景，窗口移动时壁纸跟着走，换壁纸自动更新（源码在 [desk-note-plugins](https://github.com/Heisn1006/desk-note-plugins)）。
   静态壁纸直接读注册表；Wallpaper Engine 项目支持 **.mp4 / .webm 视频壁纸**（自动循环播放），场景（scene.pkg）、网页（index.html）等其它类型只显示项目自带的 preview 图 —— 这类壁纸没有可直接播放的媒体文件，不打算为它做引擎重绘，插件设置里也写了这条限制。
 - 壁纸穿透和自定义背景**互斥**：开启壁纸时背景按钮会被禁用，关掉后自定义背景恢复。
-- 插件放在程序目录 `plugins\<id>\`，一个 `plugin.json` + 一个 `index.js` 即可。
+- 插件放在程序目录 `plugins\<id>\`，一个 `plugin.json` + 一个 `index.js` 即可；宿主只认这个约定，不关心插件来自哪个仓库。
 
 ## 全屏
 

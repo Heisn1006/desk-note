@@ -3,7 +3,7 @@
 /* 导入/导出纯函数测试：node tools/data-check.js */
 
 const assert = require('node:assert');
-const data = require('../lib/data.js');
+const data = require('../../lib/data.js');
 
 let n = 0;
 const ok = (cond, msg) => {

@@ -21,7 +21,7 @@ import { execFileSync } from 'node:child_process';
 
 const __dirname = import.meta.dirname;
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const DRY = process.argv.includes('--dry-run');
 
 function log(msg) {

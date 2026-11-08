@@ -4,7 +4,7 @@
    重点回答：一个待办放一年不动，会发生什么？ */
 
 const assert = require('node:assert');
-const S = require('../renderer/schedule.js');
+const S = require('../../renderer/schedule.js');
 
 let n = 0;
 const ok = (cond, msg) => {

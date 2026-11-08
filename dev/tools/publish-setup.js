@@ -7,7 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const version = require(path.join(ROOT, 'package.json')).version;
 const src = path.join(ROOT, 'dist', `DeskNote-v${version}-portable.zip`);
 const destDir = process.env.DESKNOTE_SETUP_DIR || 'D:\\DeskNote安装包';

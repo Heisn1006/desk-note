@@ -6,7 +6,7 @@
    - 恢复不能写死 1，脏值不能把窗口恢复成看不见 */
 
 const assert = require('node:assert');
-const fh = require('../lib/fullscreen-hide.js');
+const fh = require('../../lib/fullscreen-hide.js');
 
 let n = 0;
 const eq = (a, b, msg) => {

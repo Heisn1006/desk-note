@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const KEEP = new Set(['en-US.pak', 'zh-CN.pak', 'zh-TW.pak']);
-const dir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'dist', 'DeskNote', 'locales'));
+const dir = path.resolve(process.argv[2] || path.join(__dirname, '..', '..', 'dist', 'DeskNote', 'locales'));
 
 if (!fs.existsSync(dir)) {
   console.error(`找不到语言包目录: ${dir}`);

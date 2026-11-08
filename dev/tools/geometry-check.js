@@ -3,7 +3,7 @@
 /* 多显示器几何测试：node tools/geometry-check.js */
 
 const assert = require('node:assert');
-const g = require('../lib/geometry.js');
+const g = require('../../lib/geometry.js');
 
 let n = 0;
 const ok = (cond, msg) => {

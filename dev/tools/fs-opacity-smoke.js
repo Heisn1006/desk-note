@@ -16,7 +16,7 @@ const { spawn, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, '.testdata', 'fs-opacity');
 const DATA = path.join(OUT, 'data');
 const LOG = path.join(ROOT, 'boot.log');

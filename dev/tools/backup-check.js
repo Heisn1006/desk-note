@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const backup = require('../lib/backup.js');
+const backup = require('../../lib/backup.js');
 
 let n = 0;
 const ok = (cond, msg) => {

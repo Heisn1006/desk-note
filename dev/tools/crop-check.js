@@ -3,7 +3,7 @@
 /* 背景裁切几何测试：node tools/crop-check.js */
 
 const assert = require('node:assert');
-const C = require('../renderer/crop.js');
+const C = require('../../renderer/crop.js');
 
 let n = 0;
 const ok = (cond, msg) => {

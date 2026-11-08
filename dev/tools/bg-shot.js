@@ -8,7 +8,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, '.testdata', 'bg-shots');
 fs.mkdirSync(OUT, { recursive: true });
 app.setPath('userData', path.join(OUT, 'userdata'));

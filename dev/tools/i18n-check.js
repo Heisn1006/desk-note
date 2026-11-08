@@ -14,7 +14,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..', '..');
 const i18n = require(path.join(ROOT, 'renderer', 'i18n.js'));
 
 const problems = [];

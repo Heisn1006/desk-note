@@ -22,3 +22,6 @@ boot.log
 # 系统杂项
 Thumbs.db
 desktop.ini
+
+# 插件源码在 desk-note-plugins 仓库，用 dev/tools/fetch-plugins.mjs 拉进来，不入库
+plugins/*/

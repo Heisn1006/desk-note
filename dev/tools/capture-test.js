@@ -6,7 +6,7 @@
 const { app, BrowserWindow, session, desktopCapturer, screen } = require('electron');
 const path = require('node:path');
 
-app.setPath('userData', path.join(__dirname, '..', '.testdata', 'capture-userdata'));
+app.setPath('userData', path.join(__dirname, '..', '..', '.testdata', 'capture-userdata'));
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
     show: true,
     webPreferences: { backgroundThrottling: false },
   });
-  await win.loadFile(path.join(__dirname, '..', '.testdata', 'capture-page.html'));
+  await win.loadFile(path.join(__dirname, '..', '..', '.testdata', 'capture-page.html'));
 
   const result = await win.webContents.executeJavaScript(`(async () => {
     try {
