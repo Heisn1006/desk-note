@@ -1,5 +1,5 @@
 {
-  "version": "0.2.18",
+  "version": "0.2.19",
   "url": "https://github.com/Heisn1006/desk-note/releases/latest",
-  "notes": "全屏隐藏改为「透明 + 鼠标穿透」：退出全屏不再闪、游戏里点不到便签、进全屏隐藏更快"
+  "notes": "记住展开/收起形态；新增「每天」重复；便签内更新面板；修复检查更新 HTTP 403"
 }
