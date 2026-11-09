@@ -106,6 +106,7 @@
             <option value="" data-i18n="ed.repeatNone">不重复</option>
             <option value="weekly" data-i18n="ed.repeatWeekly">每周（可多天）</option>
             <option value="monthly" data-i18n="ed.repeatMonthly">每月（可多天）</option>
+            <option value="daily" data-i18n="ed.repeatDaily">每天</option>
           </select>
         </label>
       </div>
@@ -131,6 +132,16 @@
           <input class="ed-text" id="edMonthDays" type="text" placeholder="例：3, 9, 21" autocomplete="off" />
           <span class="ed-hint" data-i18n="ed.monthDaysHint">没有这一天的月份按当月最后一天提醒（如 2 月没有 31 号）</span>
         </div>
+      </div>
+      <div class="ed-row" id="remindRow" hidden>
+        <label class="ed-field">
+          <span data-i18n="ed.remindAt">每天提醒时间</span>
+          <div class="ed-time">
+            <input type="number" id="edRemindHour" min="0" max="23" maxlength="2" placeholder="09" />
+            <em>:</em>
+            <input type="number" id="edRemindMin" min="0" max="59" maxlength="2" placeholder="00" />
+          </div>
+        </label>
       </div>
       <div class="ed-btns">
         <button class="ghost" id="edCancel" data-i18n="ed.cancel">取消</button>

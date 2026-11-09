@@ -5,7 +5,7 @@
    核心约定：
    - 待办时间存的是「本地日期 + 时分」字符串，比如 2026-11-07T18:00
    - 它是一次性时刻，不会因为到了第二年的同一天而复活
-   - 「每周重复」按选中的星期几向前滚动；「每月重复」按选中的几号向前滚动，
+   - 「每天」按截止时间每天滚一次；「每周重复」按选中的星期几向前滚动；「每月重复」按选中的几号向前滚动，
      总是找 now 之后最近、时分不变的那一次（每周最多看 14 天，每月最多看 62 天）
    - 已完成且到了 nextAt 的重复任务会先重置，再按上面的规则滚动；
      所以离线一年再打开，也只会落在「现在之后的一次」，不会停在去年
@@ -52,10 +52,23 @@
 
   // 就地滚动一条任务；返回 true 表示改动了
   function rollTask(t, nowTs) {
-    const mode = t && (t.repeat === 'weekly' || t.repeat === 'monthly') ? t.repeat : '';
+    const mode =
+      t && (t.repeat === 'weekly' || t.repeat === 'monthly' || t.repeat === 'daily') ? t.repeat : '';
     if (!mode) return false;
 
     let changed = false;
+
+    // 0) 没有截止日期的「每天」任务：做完当天的，第二天自动复位成未完成
+    if (t.repeat === 'daily' && !t.due && t.done) {
+      const doneAt = t.doneAt ? new Date(t.doneAt) : null;
+      const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      if (!doneAt || !Number.isFinite(+doneAt) || dayStart(doneAt) < dayStart(new Date(nowTs))) {
+        t.done = false;
+        t.doneAt = null;
+        changed = true;
+      }
+      return changed;
+    }
 
     // 1) 已完成且到了下一次的时间 -> 重置为未完成
     if (t.done && t.nextAt && nowTs >= +new Date(t.nextAt)) {
@@ -86,7 +99,9 @@
             due.getHours(),
             due.getMinutes()
           )
-        : nextMonthlyTime(
+        : mode === 'daily'
+          ? nextWeeklyTime(nowTs, [0, 1, 2, 3, 4, 5, 6], due.getHours(), due.getMinutes())
+          : nextMonthlyTime(
             nowTs,
             Array.isArray(t.monthDays) && t.monthDays.length ? t.monthDays : [due.getDate()],
             due.getHours(),
@@ -111,5 +126,32 @@
     return changed;
   }
 
-  return { nextWeeklyTime, nextMonthlyTime, rollTask, rollAll, localISO };
+  // 是否到了该提醒的时候（渲染进程 / node 测试共用）
+  // - 有截止：从「最迟开始」（没设就是截止）起每天提醒，过了截止算逾期
+  // - 没有截止 + 每天 + 提醒时间：当天到点之后才提醒，一天一次（按日期去重由调用方做）
+  function remindInfo(t, now) {
+    if (!t || t.done) return null;
+    const nowTs = +now;
+    if (!t.due) {
+      if (t.repeat !== 'daily' || !t.remindAt) return null;
+      const m = String(t.remindAt).match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const nd = new Date(nowTs);
+      const at = new Date(nd.getFullYear(), nd.getMonth(), nd.getDate(), Math.min(23, +m[1]), Math.min(59, +m[2]), 0, 0);
+      if (nowTs >= +at) return { overdue: false, daysLeft: 0, started: true, daily: true, at: +at };
+      return null;
+    }
+    const due = new Date(t.due);
+    if (!Number.isFinite(+due)) return null;
+    const start = t.startAt ? new Date(t.startAt) : null;
+    const begin = start !== null ? Math.min(+start, +due) : +due;
+    if (nowTs < begin) return null;
+    return {
+      overdue: nowTs > +due,
+      daysLeft: Math.max(0, Math.ceil((+due - nowTs) / 86400000)),
+      started: start !== null && nowTs >= +start,
+    };
+  }
+
+  return { nextWeeklyTime, nextMonthlyTime, rollTask, rollAll, localISO, remindInfo };
 });

@@ -290,6 +290,32 @@ const tMonths = { repeat: 'monthly', monthDays: [5], monthlyMonths: [12], due: '
 eq(S.rollTask(tMonths, +day(2026, 1, 10)), true, '指定月份的任务过期后会滚动');
 eq(tMonths.due, '2026-12-05T09:00', '每月 12 月 5 号：滚到当年 12-05');
 
+/* ---------- 每天式重复 ---------- */
+
+// 有截止日期的「每天」：过期后滚到明天同一时刻
+const tDaily = { repeat: 'daily', due: '2026-11-08T18:00', done: false };
+eq(S.rollTask(tDaily, +day(2026, 11, 9, 10, 0)), true, '每天重复：过期后会滚动');
+eq(tDaily.due, '2026-11-09T18:00', '每天重复：滚到今天同一时刻（还没到 18:00）');
+eq(S.rollTask({ repeat: 'daily', due: '2026-11-09T18:00' }, +day(2026, 11, 9, 19, 0)), true, '每天重复：过了今天 18:00 再滚');
+
+// 没有截止日期的「每天」：做完当天的，第二天自动复位
+const tNoDue = { repeat: 'daily', due: null, done: true, doneAt: new Date(2026, 10, 8, 20, 0).toISOString() };
+eq(S.rollTask(tNoDue, +day(2026, 11, 9, 9, 0)), true, '无截止的每天任务：第二天自动复位');
+eq(tNoDue.done, false, '无截止的每天任务：复位后 done=false');
+eq(tNoDue.doneAt, null, '无截止的每天任务：doneAt 清空');
+
+// 同一天内不复位
+const tNoDue2 = { repeat: 'daily', due: null, done: true, doneAt: new Date(2026, 10, 9, 8, 0).toISOString() };
+eq(S.rollTask(tNoDue2, +day(2026, 11, 9, 23, 0)), false, '无截止的每天任务：当天不重复复位');
+eq(tNoDue2.done, true, '同一天内保持已完成');
+
+// 提醒：没有截止日期时按提醒时间，到点才提醒
+ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00' }, +day(2026, 11, 9, 8, 59)) === null, '每天任务：提醒时间之前不提醒');
+ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00' }, +day(2026, 11, 9, 9, 0)).daily === true, '每天任务：到点后进入提醒');
+ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00', done: true }, +day(2026, 11, 9, 10, 0)) === null, '每天任务：完成后不再提醒');
+ok(S.remindInfo({ repeat: '', remindAt: '09:00' }, +day(2026, 11, 9, 10, 0)) === null, '没有重复、没有截止：不提醒');
+ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00', due: null }, +day(2026, 11, 9, 10, 0)).daysLeft === 0, '每天任务：不计逾期');
+
 console.log(`✓ 时间规则测试通过（${n} 项断言）`);
 console.log('  一年不动的一次性任务：数据不变，继续按“已逾期”显示；');
 console.log('  一年不动的每周任务：落到“现在之后”的同星期时刻，不会回到去年。');

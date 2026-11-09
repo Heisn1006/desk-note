@@ -1837,6 +1837,53 @@ if (!gotLock) {
       }, 1600);
     }
 
+    // 「每天」式重复的 UI 自测：node dev/tools/daily-task-check.js
+    // 走真实编辑器控件：取消截止日期 → 重复选「每天」→ 设提醒时间 → 保存，再看存下来的任务和提醒状态
+    if (process.argv.includes('--test-daily-task')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        await wait(1500);
+        let ui = null;
+        try {
+          ui = await win.webContents.executeJavaScript(`(() => {
+            document.getElementById('btnPick').click();
+            document.getElementById('edTitle').value = '每天任务自测';
+            const d = document.getElementById('edHasDue');
+            d.checked = false;
+            d.dispatchEvent(new Event('change'));
+            const r = document.getElementById('edRepeat');
+            r.value = 'daily';
+            r.dispatchEvent(new Event('change'));
+            document.getElementById('edRemindHour').value = '00';
+            document.getElementById('edRemindMin').value = '00';
+            const remindRowVisible = !document.getElementById('remindRow').hidden;
+            const repeatKept = document.getElementById('edRepeat').value === 'daily';
+            document.getElementById('edSave').click();
+            return { remindRowVisible, repeatKept };
+          })()`);
+        } catch (e) {
+          dbg('DAILYTEST ui failed: ' + e);
+        }
+        await wait(500);
+        const t = (state.tasks || [])[0] || null;
+        let remind = null;
+        try {
+          remind = await win.webContents.executeJavaScript(
+            `(() => { const t = ${JSON.stringify(t)}; return t ? window.deskSchedule.remindInfo(t, new Date()) : null; })()`
+          );
+        } catch (e) {
+          dbg('DAILYTEST remind failed: ' + e);
+        }
+        dbg('DAILYTEST :: ' + JSON.stringify({
+          ui,
+          task: t && { title: t.title, due: t.due, repeat: t.repeat, remindAt: t.remindAt, startAt: t.startAt },
+          remind,
+        }));
+        quitting = true;
+        app.quit();
+      })();
+    }
+
     // 启动后静默检查一次更新（失败只进日志，不打扰）
     setTimeout(() => autoCheckUpdate('startup'), 5000);
 

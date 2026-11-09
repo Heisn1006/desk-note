@@ -41,6 +41,8 @@
       'ed.repeat': '重复',
       'ed.repeatNone': '不重复',
       'ed.repeatWeekly': '每周（可多天）',
+      'ed.repeatDaily': '每天',
+      'ed.remindAt': '每天提醒时间',
       'ed.repeatMonthly': '每月（可多天）',
       'ed.monthlyMonths': '哪几个月（不选＝每个月）',
       'ed.monthDays': '每月哪几号（用逗号隔开，如 3, 9, 21）',
@@ -152,6 +154,7 @@
       'nu.remind': '提醒',
       'nu.more': '等 {n} 项',
       'nu.left': '剩 {n} 天',
+      'nu.daily': '今天要做',
       'nu.allday': '全天',
 
       'group.over': '已逾期',
@@ -165,6 +168,8 @@
       'task.noDue': '无期限',
       'task.bellTip': '倒计时中，每天提醒',
       'task.repeatTag': '每周',
+      'task.repeatTipDaily': '每天重复',
+      'task.repeatTagDaily': '每天',
       'task.repeatTagMonthly': '每月',
       'task.repeatTipMonthly': '每月重复（按几号）',
       'task.tipEdit': '右键可修改',
@@ -186,6 +191,7 @@
 
       'notify.title': '今天有 {n} 项要推进',
       'notify.line': '· {title}（{state}）',
+      'notify.daily': '今天要做',
       'notify.overdue': '已逾期',
       'notify.left': '剩 {n} 天',
 
@@ -246,6 +252,8 @@
       'ed.repeat': '重複',
       'ed.repeatNone': '不重複',
       'ed.repeatWeekly': '每週（可多天）',
+      'ed.repeatDaily': '每天',
+      'ed.remindAt': '每天提醒時間',
       'ed.repeatMonthly': '每月（可多天）',
       'ed.monthlyMonths': '哪幾個月（不選＝每個月）',
       'ed.monthDays': '每月哪幾號（用逗號隔開，如 3, 9, 21）',
@@ -357,6 +365,7 @@
       'nu.remind': '提醒',
       'nu.more': '等 {n} 項',
       'nu.left': '剩 {n} 天',
+      'nu.daily': '今天要做',
       'nu.allday': '整天',
 
       'group.over': '已逾期',
@@ -370,6 +379,8 @@
       'task.noDue': '無期限',
       'task.bellTip': '倒數中，每天提醒',
       'task.repeatTag': '每週',
+      'task.repeatTipDaily': '每天重複',
+      'task.repeatTagDaily': '每天',
       'task.repeatTagMonthly': '每月',
       'task.repeatTipMonthly': '每月重複（按幾號）',
       'task.tipEdit': '右鍵可修改',
@@ -391,6 +402,7 @@
 
       'notify.title': '今天有 {n} 項要推進',
       'notify.line': '· {title}（{state}）',
+      'notify.daily': '今天要做',
       'notify.overdue': '已逾期',
       'notify.left': '剩 {n} 天',
 
@@ -451,6 +463,8 @@
       'ed.repeat': 'Repeat',
       'ed.repeatNone': 'Never',
       'ed.repeatWeekly': 'Weekly (multi-day)',
+      'ed.repeatDaily': 'Daily',
+      'ed.remindAt': 'Daily reminder time',
       'ed.repeatMonthly': 'Monthly (multi-day)',
       'ed.monthlyMonths': 'Months (empty = every month)',
       'ed.monthDays': 'Days of the month (comma separated, e.g. 3, 9, 21)',
@@ -564,6 +578,7 @@
       'nu.remind': 'Remind',
       'nu.more': '+{n} more',
       'nu.left': '{n} d left',
+      'nu.daily': 'Due today',
       'nu.allday': 'All day',
 
       'group.over': 'OVERDUE',
@@ -577,6 +592,8 @@
       'task.noDue': 'No due date',
       'task.bellTip': 'Counting down, daily reminder',
       'task.repeatTag': 'Weekly',
+      'task.repeatTipDaily': 'Repeats every day',
+      'task.repeatTagDaily': 'Daily',
       'task.repeatTagMonthly': 'Monthly',
       'task.repeatTipMonthly': 'Repeats every month on the selected dates',
       'task.tipEdit': 'Right-click to edit',
@@ -599,6 +616,7 @@
       'notify.title': '{n} tasks to advance today',
       'notify.title.one': '1 task to advance today',
       'notify.line': '· {title} ({state})',
+      'notify.daily': 'Due today',
       'notify.overdue': 'overdue',
       'notify.left': '{n} d left',
 
