@@ -6,6 +6,7 @@
  * 用法：
  *   node dev/tools/publish-release.mjs 0.2.15              # 建/更新 v0.2.15 并上传附件
  *   node dev/tools/publish-release.mjs 0.2.15 --dry-run    # 只检查，不上传
+ *   node dev/tools/publish-release.mjs 0.2.19 --replace    # 覆盖已有 release 的附件（同版本重发）
  *   node dev/tools/publish-release.mjs                     # 用 package.json 里的版本
  *
  * 依赖：
@@ -25,6 +26,7 @@ const __dirname = import.meta.dirname;
 
 const ROOT = path.join(__dirname, '..', '..');
 const DRY = process.argv.includes('--dry-run');
+const REPLACE = process.argv.includes('--replace');
 
 function log(msg) {
   console.log(msg);
@@ -287,8 +289,13 @@ function uploadAsset(uploadUrl, name, file) {
   const same = (assets.json || []).filter((a) => a.name === assetName);
   for (const a of same) {
     if (a.state === 'uploaded') {
-      log(`✓ 附件已存在且已完成：${a.browser_download_url}`);
-      return;
+      if (!REPLACE) {
+        log(`✓ 附件已存在且已完成：${a.browser_download_url}`);
+        return;
+      }
+      log(`· --replace：删掉已上传的旧附件 ${a.name}（${a.id}）`);
+      if (!DRY) await api('DELETE', `/repos/${slug.owner}/${slug.repo}/releases/assets/${a.id}`);
+      continue;
     }
     log(`· 删掉未完成的附件记录 ${a.id}（state=${a.state}）`);
     if (!DRY) await api('DELETE', `/repos/${slug.owner}/${slug.repo}/releases/assets/${a.id}`);
