@@ -112,6 +112,10 @@ function startText(t) {
 
 function groupOf(t, now) {
   if (t.done) return 'done';
+  // 重复任务按类型单独分组（每天 / 每周 / 每月），不然都堆在「更远 / 无日期」里
+  if (t.repeat === 'daily') return 'daily';
+  if (t.repeat === 'weekly') return 'weekly';
+  if (t.repeat === 'monthly') return 'monthly';
   if (!t.due) return 'later';
   const d = new Date(t.due);
   if (+d < +now) return 'over';
@@ -275,7 +279,17 @@ function rowHTML(t, now) {
 
 function render() {
   const now = new Date();
-  const buckets = { over: [], today: [], tomorrow: [], week: [], later: [], done: [] };
+  const buckets = {
+    over: [],
+    today: [],
+    tomorrow: [],
+    week: [],
+    later: [],
+    daily: [],
+    weekly: [],
+    monthly: [],
+    done: [],
+  };
   for (const t of tasks) buckets[groupOf(t, now)].push(t);
   for (const k of Object.keys(buckets)) buckets[k].sort(byDue);
 
@@ -324,7 +338,10 @@ function render() {
     nu.hidden = true;
   }
 
-  const groups = ['over', 'today', 'tomorrow', 'week', 'later'].map((key) => [key, i18n.groupLabel(key)]);
+  const groups = ['over', 'today', 'tomorrow', 'week', 'later', 'daily', 'weekly', 'monthly'].map((key) => [
+    key,
+    i18n.groupLabel(key),
+  ]);
 
   let html = '';
   if (!active.length) {

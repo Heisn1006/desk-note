@@ -166,6 +166,9 @@
       'group.tomorrow': '明天',
       'group.week': '本周内',
       'group.later': '更远 / 无日期',
+      'group.daily': '每天',
+      'group.weekly': '每周',
+      'group.monthly': '每月',
       'group.done': '已完成',
 
       'task.doneBadge': '已完成',
@@ -381,6 +384,9 @@
       'group.tomorrow': '明天',
       'group.week': '本週內',
       'group.later': '更遠 / 無日期',
+      'group.daily': '每天',
+      'group.weekly': '每週',
+      'group.monthly': '每月',
       'group.done': '已完成',
 
       'task.doneBadge': '已完成',
@@ -598,6 +604,9 @@
       'group.tomorrow': 'TOMORROW',
       'group.week': 'THIS WEEK',
       'group.later': 'LATER',
+      'group.daily': 'DAILY',
+      'group.weekly': 'WEEKLY',
+      'group.monthly': 'MONTHLY',
       'group.done': 'DONE',
 
       'task.doneBadge': 'Done',

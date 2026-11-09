@@ -1935,6 +1935,21 @@ if (!gotLock) {
       })();
     }
 
+    // 分组自测：node dev/tools/grouping-check.js
+    // 读列表里渲染出来的分组标题（重复任务应该分到「每天 / 每周 / 每月」）
+    if (process.argv.includes('--test-groups')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        await wait(1600);
+        const headers = await win.webContents.executeJavaScript(
+          `(() => [...document.querySelectorAll('#list .group > span:first-child')].map((e) => e.textContent))()`
+        );
+        dbg('GROUPTEST :: ' + JSON.stringify({ headers }));
+        quitting = true;
+        app.quit();
+      })();
+    }
+
     // 启动后静默检查一次更新（失败只进日志，不打扰）
     setTimeout(() => autoCheckUpdate('startup'), 5000);
 
