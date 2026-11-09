@@ -1502,13 +1502,23 @@ function initSettingsUI() {
 
 /* ---------------- 每日提醒 ---------------- */
 
+// 本次会话开始的时间（模块加载时间）。「每天」的提醒如果到点时程序没开着，
+// 打开后不补推——不然早上 9 点的提醒会在你下午开机时突然响一次。
+const sessionStartedAt = Date.now();
+
 async function maybeNotify(reminding, now) {
   if (!reminding || !reminding.length) return;
+  // 到点时程序没开着的「每天」任务：今天不补推（铃铛还在，只是不弹通知）
+  const list = reminding.filter((t) => {
+    const info = remindInfo(t, now);
+    return !(info && info.daily && info.at < sessionStartedAt);
+  });
+  if (!list.length) return;
   const today = dateStr(now);
   if (settings.lastNotifyDate === today) return;
   settings.lastNotifyDate = today;
   window.desk.saveSettings({ lastNotifyDate: today });
-  const lines = reminding.slice(0, 3).map((t) => {
+  const lines = list.slice(0, 3).map((t) => {
     const info = remindInfo(t, now);
     return tr('notify.line', {
       title: t.title,
@@ -1520,7 +1530,7 @@ async function maybeNotify(reminding, now) {
     });
   });
   window.desk.notify({
-    title: i18n.tCount('notify.title', reminding.length),
+    title: i18n.tCount('notify.title', list.length),
     body: lines.join('\n'),
   });
 }
