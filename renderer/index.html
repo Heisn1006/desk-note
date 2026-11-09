@@ -281,6 +281,18 @@
       <div class="pm-note" data-i18n="plugin.note">启用或停用后，重启便签生效</div>
     </div>
 
+    <div class="update-modal" id="updatePanel" hidden>
+      <div class="upd-head">
+        <span class="upd-title" data-i18n="update.panelTitle">发现新版本</span>
+        <span class="upd-ver" id="updVer"></span>
+      </div>
+      <div class="upd-notes" id="updNotes"></div>
+      <div class="upd-actions">
+        <button type="button" class="ghost" id="updLater" data-i18n="update.later">不更新</button>
+        <button type="button" class="primary" id="updGo" data-i18n="update.go">更新</button>
+      </div>
+    </div>
+
     <div class="cropper" id="cropper" hidden>
       <div class="crop-head">
         <span class="crop-title" data-i18n="crop.title">选择背景区域</span>

@@ -122,6 +122,7 @@ function defaultSettings() {
     bounds: null,
     lang: 'zh-CN',
     hideOnFullscreen: true,
+    updateSkipped: '',
     plugins: {},
   };
 }
@@ -251,12 +252,19 @@ function setAutostart(on) {
 
 const UPDATE_TIMEOUT = 15000;   // 本机到 GitHub 经常很慢，6 秒会把正常请求也打断
 
-// 换成你自己的仓库地址即可；调试时可用环境变量覆盖成本地文件/服务
+// 更新清单：优先用 release 附件（github.com 的静态下载，不消耗 GitHub API 的匿名额度，也不依赖代理），
+// 附件缺失 / 老版本时再退回 API，最后退回 raw。调试可用 DESKNOTE_UPDATE_URL 覆盖成本地文件或 http。
+const UPDATE_ASSET_URL = 'https://github.com/Heisn1006/desk-note/releases/latest/download/version.json';
+const UPDATE_API_URL = 'https://api.github.com/repos/Heisn1006/desk-note/contents/version.json';
+const UPDATE_RAW_URL = 'https://raw.githubusercontent.com/Heisn1006/desk-note/main/version.json';
+
 function updateManifestUrl() {
-  return (
-    process.env.DESKNOTE_UPDATE_URL ||
-    'https://api.github.com/repos/Heisn1006/desk-note/contents/version.json'
-  );
+  return process.env.DESKNOTE_UPDATE_URL || UPDATE_ASSET_URL;
+}
+
+function updateFallbackUrls() {
+  if (process.env.DESKNOTE_UPDATE_URL) return [];
+  return [UPDATE_API_URL, UPDATE_RAW_URL];
 }
 
 // 只比较数字段：1.2.10 > 1.2.9
@@ -324,27 +332,37 @@ async function autoCheckUpdate(reason) {
 
 async function checkUpdate(manual) {
   const current = app.getVersion();
-  const url = updateManifestUrl();
-  try {
-    const j = await fetchManifest(url);
-    const latest = String((j && j.version) || '').trim();
-    if (!latest) throw new Error('manifest 缺少 version');
-    const newer = cmpVersion(latest, current) > 0;
-    dbg(`update: cur=${current} latest=${latest} newer=${newer} manual=${manual}`);
-    return {
-      ok: true,
-      current,
-      latest,
-      newer,
-      url: String((j && j.url) || ''),
-      notes: String((j && j.notes) || ''),
-    };
-  } catch (err) {
-    const msg = (err && err.message) || String(err);
-    const timeout = /abort/i.test(msg);
-    dbg('update check failed (' + (timeout ? 'timeout' : 'error') + '): ' + msg);
-    return { ok: false, current, reason: timeout ? 'timeout' : 'error', error: msg };
+  let last = null;
+  for (const url of [updateManifestUrl(), ...updateFallbackUrls()]) {
+    try {
+      const j = await fetchManifest(url);
+      const latest = String((j && j.version) || '').trim();
+      if (!latest) throw new Error('manifest 缺少 version');
+      const newer = cmpVersion(latest, current) > 0;
+      dbg(`update: cur=${current} latest=${latest} newer=${newer} manual=${manual}`);
+      return {
+        ok: true,
+        current,
+        latest,
+        newer,
+        url: String((j && j.url) || ''),
+        notes: String((j && j.notes) || ''),
+      };
+    } catch (err) {
+      last = err;
+      dbg('update manifest failed: ' + url + ' -> ' + ((err && err.message) || err));
+    }
   }
+  const msg = (last && last.message) || String(last || 'network');
+  const timeout = /abort/i.test(msg);
+  const ratelimit = /HTTP 403/.test(msg);
+  dbg('update check failed (' + (timeout ? 'timeout' : ratelimit ? 'ratelimit' : 'error') + '): ' + msg);
+  return {
+    ok: false,
+    current,
+    reason: timeout ? 'timeout' : ratelimit ? 'ratelimit' : 'error',
+    error: msg,
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1879,6 +1897,39 @@ if (!gotLock) {
           task: t && { title: t.title, due: t.due, repeat: t.repeat, remindAt: t.remindAt, startAt: t.startAt },
           remind,
         }));
+        quitting = true;
+        app.quit();
+      })();
+    }
+
+    // 更新面板 UI 自测：node dev/tools/update-panel-check.js
+    // 用 DESKNOTE_UPDATE_URL 指一个本地假清单（9.9.9），点「检查更新」看面板，再点「不更新」
+    if (process.argv.includes('--test-update-panel')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        await wait(1500);
+        await win.webContents.executeJavaScript(`(() => { document.getElementById('btnCheckUpdate').click(); return true; })()`);
+        await wait(1200);
+        const info = await win.webContents.executeJavaScript(`(() => {
+          const p = document.getElementById('updatePanel');
+          const cs = p ? getComputedStyle(p) : null;
+          const visible = !!p && !p.hidden;
+          const title = (document.getElementById('updVer') || {}).textContent || '';
+          const notes = (document.getElementById('updNotes') || {}).textContent || '';
+          const btnCount = p ? p.querySelectorAll('button').length : 0;
+          const root = document.documentElement;
+          const old = root.dataset.theme || '';
+          const bg = cs ? cs.backgroundColor : '';
+          root.dataset.theme = 'night';
+          const bgNight = p ? getComputedStyle(p).backgroundColor : '';
+          if (old) root.dataset.theme = old; else root.removeAttribute('data-theme');
+          return { visible, title, notes, btnCount, bg, bgNight };
+        })()`);
+        await win.webContents.executeJavaScript(`(() => { document.getElementById('updLater').click(); return true; })()`);
+        await wait(400);
+        const skipped = (state.settings && state.settings.updateSkipped) || '';
+        const panelHidden = await win.webContents.executeJavaScript(`(() => document.getElementById('updatePanel').hidden)()`);
+        dbg('UPDATETEST :: ' + JSON.stringify({ info, skipped, panelHidden }));
         quitting = true;
         app.quit();
       })();

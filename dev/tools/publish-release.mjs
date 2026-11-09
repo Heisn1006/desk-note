@@ -267,6 +267,21 @@ function uploadAsset(uploadUrl, name, file) {
 
   const releaseId = rel.json.id;
 
+  // 1.5 更新检查用的版本清单：作为 release 附件同步一份。
+  // 客户端的更新检查走 releases/latest/download/version.json（静态下载，不消耗 API 匿名额度）。
+  const vfile = path.join(ROOT, "version.json");
+  if (!DRY && fs.existsSync(vfile)) {
+    const cur = await api("GET", `${base}/releases/${releaseId}/assets`);
+    for (const a of (cur.json || []).filter((x) => x.name === "version.json")) {
+      await api("DELETE", `/repos/${slug.owner}/${slug.repo}/releases/assets/${a.id}`);
+    }
+    const vu = await uploadAsset(rel.json.upload_url, "version.json", vfile);
+    if (vu && vu.status < 300) log("✓ 已同步 version.json 附件（更新检查用）");
+    else die("version.json 附件上传失败：" + String((vu && vu.raw) || "").slice(0, 160));
+  } else if (DRY) {
+    log("· [dry-run] 会同步 version.json 附件");
+  }
+
   // 2. 同名附件：已上传的就跳过；卡在 starter 的先删掉
   const assets = await api('GET', `${base}/releases/${releaseId}/assets`);
   const same = (assets.json || []).filter((a) => a.name === assetName);

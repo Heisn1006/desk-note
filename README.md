@@ -125,11 +125,12 @@ Electron 45 + 原生 HTML/CSS/JS，无框架、无构建步骤。
 
 设置面板底部显示当前版本，旁边是「检查更新」。
 
-- 启动 5 秒后会自动静默检查一次，发现新版本会在便签里弹一次提示，按钮变成「下载 vX.Y.Z」；
-- 手动点「检查更新」：已是最新会提示版本号，有新版本会直接用浏览器打开下载页；
+- 启动 5 秒后会自动静默检查一次；发现新版本会在**便签窗口里**浮出更新面板（背景/文字跟随当前皮肤主题），
+  两个按钮：**更新**（打开下载页）/ **不更新**（记住这个版本，之后自动检查不再弹）；
+- 手动点「检查更新」：已是最新会提示版本号；有新版本弹同一个面板；
 - 检查对象是一份静态 `version.json`，**只做提示，不自动下载、不自动安装**。
 
-`version.json` 长这样（放在仓库根目录即可）：
+`version.json` 长这样（仓库根目录一份，发版时 `publish-release.mjs` 会同步成 release 附件）：
 
 ```json
 {
@@ -139,10 +140,14 @@ Electron 45 + 原生 HTML/CSS/JS，无框架、无构建步骤。
 }
 ```
 
-清单地址在 `main.js` 的 `updateManifestUrl()` 里，形如
-`https://api.github.com/repos/<用户名>/<仓库>/contents/version.json`。
+清单地址在 `main.js` 的 `updateManifestUrl()` 里：
 
-> 用 **api.github.com 的 contents 接口**、并带 `Accept: application/vnd.github.raw`，是因为 `raw.githubusercontent.com` 和 `cdn.jsdelivr.net` 在很多网络（尤其国内）会被重置；实测本机 raw 是 000、api 是 200。
+```
+https://github.com/Heisn1006/desk-note/releases/latest/download/version.json
+```
+
+> 走 **release 附件**而不是 api.github.com：匿名 API 只有 60 次/小时/IP，国内共享出口很容易打满（就撞过 HTTP 403），
+> 而 `releases/latest/download/...` 是静态下载，不占这个额度，也不用代理。附件缺失时依次退回 api.github.com 和 raw。
 
 调试时可以用环境变量 `DESKNOTE_UPDATE_URL` 指向本地文件或任意 http 地址，不用改动代码。
 

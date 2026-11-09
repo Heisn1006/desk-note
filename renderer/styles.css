@@ -1443,6 +1443,51 @@ body.desktop-wallpaper #bgLayer { display: none !important; }
 
 /* ---------------- 插件管理浮层 ---------------- */
 
+/* 更新提示：盖在便签卡片内部，背景/文字全用主题变量，跟着 data-theme 变 */
+.update-modal {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 54px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: var(--sp-bg);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 18px 36px -14px rgba(40, 28, 12, 0.55);
+}
+
+.update-modal[hidden] { display: none !important; }
+
+.upd-head { display: flex; align-items: baseline; gap: 8px; }
+.upd-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.3px; }
+.upd-ver { font-size: 11px; font-weight: 650; color: var(--accent); font-variant-numeric: tabular-nums; }
+.upd-notes {
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink2);
+  white-space: pre-wrap;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.upd-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.upd-actions button {
+  font: inherit;
+  font-size: 10.5px;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.upd-actions .ghost { background: transparent; border-color: var(--line-strong); color: var(--ink2); }
+.upd-actions .ghost:hover { background: var(--hover); }
+.upd-actions .primary { background: var(--accent); color: #fff; font-weight: 600; }
+.upd-actions .primary:hover { filter: brightness(1.06); }
+
 .plugins-modal {
   position: absolute;
   inset: 0;

@@ -749,6 +749,8 @@ function applyMiniUI(on) {
     // 收起时把浮层一起收掉，否则会压在迷你条上
     const pm = $('#pluginsModal');
     if (pm) pm.hidden = true;
+    const up = $('#updatePanel');
+    if (up) up.hidden = true;
     if ($('#cropper') && !$('#cropper').hidden) closeCropper(false);
     const panel = $('#settingsPanel');
     if (panel) panel.hidden = true;
@@ -796,6 +798,12 @@ window.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (active && active.isContentEditable);
 
   if (e.key === 'Escape') {
+    const up = $('#updatePanel');
+    if (up && !up.hidden) {
+      e.preventDefault();
+      closeUpdatePanel();
+      return;
+    }
     const pm = $('#pluginsModal');
     if (pm && !pm.hidden) {
       e.preventDefault();
@@ -1303,6 +1311,27 @@ function initSettingsUI() {
 
   let updateInfo = null;
 
+  function closeUpdatePanel() {
+    const p = $('#updatePanel');
+    if (p) p.hidden = true;
+  }
+
+  // 更新提示做在便签自己的窗口里：背景/文字全用主题变量（跟随皮肤），不另开系统窗口
+  function showUpdatePanel(r) {
+    if (!r || !r.newer) return;
+    updateInfo = r;
+    const sp = $('#settingsPanel');
+    if (sp) sp.hidden = true;
+    if (!ed.wrap.hidden) closeEditor();
+    const pm = $('#pluginsModal');
+    if (pm) pm.hidden = true;
+    $('#updVer').textContent = 'v' + r.latest;
+    const notes = String(r.notes || '').trim();
+    $('#updNotes').textContent = notes || tr('update.panelEmpty');
+    const panel = $('#updatePanel');
+    if (panel) panel.hidden = false;
+  }
+
   async function runUpdateCheck() {
     const btn = $('#btnCheckUpdate');
     const old = btn.textContent;
@@ -1311,7 +1340,12 @@ function initSettingsUI() {
     try {
       const r = await window.desk.checkUpdate(true);
       if (!r || !r.ok) {
-        const e = r && r.reason === 'timeout' ? tr('update.failTimeout') : String((r && r.error) || 'network');
+        const e =
+          r && r.reason === 'timeout'
+            ? tr('update.failTimeout')
+            : r && r.reason === 'ratelimit'
+              ? tr('update.failRateLimit')
+              : String((r && r.error) || 'network');
         showToast(tr('update.fail', { e: e.slice(0, 60) }), 3600);
         return;
       }
@@ -1320,13 +1354,8 @@ function initSettingsUI() {
         showToast(tr('update.latest', { v: r.latest }), 2400);
         return;
       }
-      if (r.url && (await window.desk.openUrl(r.url))) {
-        showToast(tr('update.found', { v: r.latest }), 3600);
-        btn.textContent = tr('update.download', { v: r.latest });
-        return;
-      }
-      showToast(tr('update.found', { v: r.latest }), 3600);
-      if (r.url) showToast(tr('update.openFail'), 3000);
+      btn.textContent = tr('update.download', { v: r.latest });
+      showUpdatePanel(r);
     } finally {
       btn.disabled = false;
       if (btn.textContent === tr('update.checking')) btn.textContent = old;
@@ -1335,14 +1364,27 @@ function initSettingsUI() {
 
   $('#btnCheckUpdate').addEventListener('click', runUpdateCheck);
 
+  $('#updGo').addEventListener('click', async () => {
+    const url = (updateInfo && updateInfo.url) || 'https://github.com/Heisn1006/desk-note/releases/latest';
+    closeUpdatePanel();
+    const ok = await window.desk.openUrl(url);
+    if (!ok) showToast(tr('update.openFail'), 3000);
+  });
+
+  $('#updLater').addEventListener('click', async () => {
+    closeUpdatePanel();
+    settings = await window.desk.saveSettings({ updateSkipped: (updateInfo && updateInfo.latest) || '' });
+  });
+
   if (window.desk.onUpdateAvailable) {
     window.desk.onUpdateAvailable((r) => {
       updateInfo = r;
       if (!r || !r.newer) return;
       console.log('[update] available ' + r.latest);
+      if (settings.updateSkipped === r.latest) return;   // 用户在这个版本点过「不更新」
       const btn = $('#btnCheckUpdate');
       if (btn) btn.textContent = tr('update.download', { v: r.latest });
-      showToast(tr('update.found', { v: r.latest }), 4200);
+      showUpdatePanel(r);
     });
   }
 
