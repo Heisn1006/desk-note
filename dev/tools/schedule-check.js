@@ -316,6 +316,33 @@ ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00', done: true }, +day(2026, 1
 ok(S.remindInfo({ repeat: '', remindAt: '09:00' }, +day(2026, 11, 9, 10, 0)) === null, '没有重复、没有截止：不提醒');
 ok(S.remindInfo({ repeat: 'daily', remindAt: '09:00', due: null }, +day(2026, 11, 9, 10, 0)).daysLeft === 0, '每天任务：不计逾期');
 
+/* ---------- 按重复日提前提醒（截止日期当最后期限） ---------- */
+
+// 2026-11-10 是周二
+const weeklyBase = { repeat: 'weekly', repeatDays: [2], remindByRepeat: true, remindAt: '09:00', due: '2027-01-26T00:00', done: false };
+ok(!!S.remindInfo(weeklyBase, +day(2026, 11, 10, 9, 30)), '每周二 09:30：到点进入提醒');
+ok(S.remindInfo(weeklyBase, +day(2026, 11, 10, 8, 0)) === null, '周二 08:00 还没到提醒时间，不提醒');
+ok(S.remindInfo(weeklyBase, +day(2026, 11, 9, 10, 0)) === null, '周一不提醒');
+ok(S.remindInfo(weeklyBase, +day(2026, 11, 10, 9, 30)).daysLeft > 70, '提醒时带上「距离最后期限还有几天」');
+ok(S.remindInfo({ ...weeklyBase }, +day(2027, 1, 27, 10, 0)).overdue === true, '过了最后期限：算逾期');
+
+// 截止日期不跟着每周滚（它是最后期限）
+const deadlineTask = { repeat: 'weekly', repeatDays: [2], remindByRepeat: true, remindAt: '09:00', due: '2026-11-03T00:00', done: false };
+eq(S.rollTask(deadlineTask, +day(2026, 11, 10, 9, 30)), false, '提前提醒：截止日期不按周往后滚');
+eq(deadlineTask.due, '2026-11-03T00:00', '每周过去后 last 期限保持不变');
+
+// 完成的每周提醒任务：到点复位，截止日期不动
+const doneTask = { repeat: 'weekly', repeatDays: [2], remindByRepeat: true, remindAt: '09:00', due: '2027-01-26T00:00', done: true, doneAt: new Date(2026, 10, 10, 10, 0).toISOString(), nextAt: '2026-11-17T09:00' };
+eq(S.rollTask(doneTask, +day(2026, 11, 17, 9, 0)), true, '完成的每周提醒任务：下一周到点复位');
+eq(doneTask.done, false, '复位后 done=false');
+eq(doneTask.due, '2027-01-26T00:00', '复位后截止日期仍然是最后期限');
+eq(doneTask.nextAt, null, '复位后 nextAt 清空');
+
+// 每月：按几号提前提醒
+const monthlyBase = { repeat: 'monthly', monthDays: [15], remindByRepeat: true, remindAt: '09:00', due: '2027-06-30T00:00', done: false };
+ok(!!S.remindInfo(monthlyBase, +day(2026, 11, 15, 10, 0)), '每月 15 号：当天到点提醒');
+ok(S.remindInfo(monthlyBase, +day(2026, 11, 14, 10, 0)) === null, '每月 15 号：前一天不提醒');
+
 console.log(`✓ 时间规则测试通过（${n} 项断言）`);
 console.log('  一年不动的一次性任务：数据不变，继续按“已逾期”显示；');
 console.log('  一年不动的每周任务：落到“现在之后”的同星期时刻，不会回到去年。');

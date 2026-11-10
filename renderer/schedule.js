@@ -74,17 +74,27 @@
     if (t.done && t.nextAt && nowTs >= +new Date(t.nextAt)) {
       t.done = false;
       t.doneAt = null;
-      t.due = t.nextAt;
-      if (t.nextStartAt) t.startAt = t.nextStartAt;
-      t.nextAt = null;
-      t.nextStartAt = null;
-      changed = true;
+      if (t.remindByRepeat) {
+        // 截止日期是最后期限，不跟着重复滚；下一轮提醒由 nextAt 控制
+        t.nextAt = null;
+        t.nextStartAt = null;
+        changed = true;
+      } else {
+        t.due = t.nextAt;
+        if (t.nextStartAt) t.startAt = t.nextStartAt;
+        t.nextAt = null;
+        t.nextStartAt = null;
+        changed = true;
+      }
       // 不直接返回：离线很久时 nextAt 可能已经过去一年，继续往下滚
     } else if (t.done) {
       return false;
     }
 
     if (!t.due) return changed;
+
+    // 「按重复日提前提醒」的截止日期是最后期限，不按重复节奏往后滚
+    if (t.remindByRepeat) return changed;
 
     const due = new Date(t.due);
     if (!Number.isFinite(+due)) return changed;
@@ -126,12 +136,54 @@
     return changed;
   }
 
+  // "09:30" -> [9, 30]；不合法用默认值
+  function parseHM(v, dflt) {
+    const m = String(v || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return dflt;
+    return [Math.min(23, +m[1]), Math.min(59, +m[2])];
+  }
+
+  // 今天是不是这条重复任务的「提醒日」（每周看星期几，每月看几号 + 月份过滤）
+  function isRepeatDay(t, d) {
+    if (t.repeat === 'weekly') {
+      const days = Array.isArray(t.repeatDays) ? t.repeatDays : [];
+      return days.length > 0 && days.includes(d.getDay());
+    }
+    if (t.repeat === 'monthly') {
+      const days = Array.isArray(t.monthDays) ? t.monthDays : [];
+      if (!days.length) return false;
+      const months = Array.isArray(t.monthlyMonths) && t.monthlyMonths.length ? t.monthlyMonths : null;
+      if (months && months.indexOf(d.getMonth() + 1) < 0) return false;
+      const last = lastDayOf(d.getFullYear(), d.getMonth());
+      return days.some((w) => Math.min(w, last) === d.getDate());
+    }
+    return false;
+  }
+
   // 是否到了该提醒的时候（渲染进程 / node 测试共用）
   // - 有截止：从「最迟开始」（没设就是截止）起每天提醒，过了截止算逾期
   // - 没有截止 + 每天 + 提醒时间：当天到点之后才提醒，一天一次（按日期去重由调用方做）
   function remindInfo(t, now) {
     if (!t || t.done) return null;
     const nowTs = +now;
+
+    // 「按重复日提前提醒」：每个重复日的提醒时间到点后才提醒，截止日期只当最后期限
+    if (t.remindByRepeat && (t.repeat === 'weekly' || t.repeat === 'monthly')) {
+      const nd = new Date(nowTs);
+      const dueTs = t.due ? +new Date(t.due) : null;
+      const dueOk = dueTs !== null && Number.isFinite(dueTs);
+      if (dueOk && nowTs > dueTs) {
+        return { overdue: true, daysLeft: 0, started: true, occurrence: true };
+      }
+      const [hh, mm] = parseHM(t.remindAt, [9, 0]);
+      const at = new Date(nd.getFullYear(), nd.getMonth(), nd.getDate(), hh, mm, 0, 0);
+      if (isRepeatDay(t, nd) && nowTs >= +at) {
+        const daysLeft = dueOk ? Math.max(0, Math.ceil((dueTs - nowTs) / 86400000)) : 0;
+        return { overdue: false, daysLeft, started: true, occurrence: true, at: +at };
+      }
+      return null;
+    }
+
     if (!t.due) {
       if (t.repeat !== 'daily' || !t.remindAt) return null;
       const m = String(t.remindAt).match(/^(\d{1,2}):(\d{2})$/);
@@ -153,5 +205,5 @@
     };
   }
 
-  return { nextWeeklyTime, nextMonthlyTime, rollTask, rollAll, localISO, remindInfo };
+  return { nextWeeklyTime, nextMonthlyTime, rollTask, rollAll, localISO, remindInfo, parseHM, isRepeatDay };
 });

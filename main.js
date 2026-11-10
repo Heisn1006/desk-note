@@ -1935,6 +1935,62 @@ if (!gotLock) {
       })();
     }
 
+    // 「按重复日提前提醒」自测：node dev/tools/repeat-remind-check.js
+    // 真实编辑器：不设「最迟开始」，截止 2027-01-26，每周二，勾「从今天起按重复日提醒」，提醒时间 09:00
+    if (process.argv.includes('--test-repeat-remind')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        await wait(1500);
+        let ui = null;
+        try {
+          ui = await win.webContents.executeJavaScript(`(() => {
+            document.getElementById('btnPick').click();
+            document.getElementById('edTitle').value = '每周提醒自测';
+            document.getElementById('edDueDate').value = '2027-01-26';
+            document.getElementById('edDueHour').value = '00';
+            document.getElementById('edDueMin').value = '00';
+            const r = document.getElementById('edRepeat');
+            r.value = 'weekly';
+            r.dispatchEvent(new Event('change'));
+            [...document.querySelectorAll('.day-chip')].forEach((c) => c.classList.toggle('active', c.dataset.d === '2'));
+            const nowBox = document.getElementById('edRepeatNow');
+            nowBox.checked = true;
+            nowBox.dispatchEvent(new Event('change'));
+            document.getElementById('edRemindHour').value = '09';
+            document.getElementById('edRemindMin').value = '00';
+            const remindRowVisible = !document.getElementById('remindRow').hidden;
+            document.getElementById('edSave').click();
+            return { remindRowVisible };
+          })()`);
+        } catch (e) {
+          dbg('REPEATTEST ui failed: ' + e);
+        }
+        await wait(500);
+        const t = (state.tasks || [])[0] || null;
+        let info = {};
+        try {
+          info = await win.webContents.executeJavaScript(`(() => {
+            const t = ${JSON.stringify(t)};
+            if (!t) return {};
+            const S = window.deskSchedule;
+            return {
+              tue: S.remindInfo(t, new Date(2026, 10, 10, 9, 30)),
+              mon: S.remindInfo(t, new Date(2026, 10, 9, 10, 0)),
+            };
+          })()`);
+        } catch (e) {
+          dbg('REPEATTEST remind failed: ' + e);
+        }
+        dbg('REPEATTEST :: ' + JSON.stringify({
+          ui,
+          task: t && { title: t.title, due: t.due, repeat: t.repeat, repeatDays: t.repeatDays, remindByRepeat: t.remindByRepeat, remindAt: t.remindAt },
+          info,
+        }));
+        quitting = true;
+        app.quit();
+      })();
+    }
+
     // 分组自测：node dev/tools/grouping-check.js
     // 读列表里渲染出来的分组标题（重复任务应该分到「每天 / 每周 / 每月」）
     if (process.argv.includes('--test-groups')) {

@@ -319,7 +319,7 @@ function render() {
     $('#nuLabel').textContent = tr('nu.remind');
     $('#nuTime').textContent = i18n.clipTitle(f.title);
     $('#nuTitle').textContent = reminding.length > 1 ? tr('nu.more', { n: reminding.length }) : '';
-    $('#nuCd').textContent = info.daily
+    $('#nuCd').textContent = info.daily || info.occurrence
       ? tr('nu.daily')
       : info.overdue
         ? relText(new Date(f.due), now)
@@ -431,23 +431,32 @@ function toggleTask(id) {
   const t = tasks.find((x) => x.id === id);
   if (!t) return;
 
-  // 每周重复：先标记完成（进「已完成」），并记下下次该重置到的时刻；
-  // 到点后由 rollWeekly() 读系统时间自动重置为未完成
-  if (!t.done && (t.repeat === 'weekly' || t.repeat === 'daily') && t.due) {
+  // 重复任务完成：先标记完成，并记下下次该重置到的时刻；到点后由 rollWeekly() 自动重置
+  const rep = t.repeat === 'weekly' || t.repeat === 'monthly' || t.repeat === 'daily' ? t.repeat : '';
+  if (!t.done && rep && t.due) {
     const due = new Date(t.due);
-    const days =
-      t.repeat === 'daily'
-        ? [0, 1, 2, 3, 4, 5, 6]
-        : Array.isArray(t.repeatDays) && t.repeatDays.length
-          ? t.repeatDays
-          : [due.getDay()];
-    const next = nextWeeklyTime(Date.now(), days, due.getHours(), due.getMinutes()) || new Date(+due + 7 * 86400000);
+    // 「按重复日提前提醒」时用提醒时间，否则用截止时刻
+    const hm = t.remindByRepeat
+      ? window.deskSchedule.parseHM(t.remindAt, [9, 0])
+      : [due.getHours(), due.getMinutes()];
+    let next = null;
+    if (rep === 'daily') {
+      next = nextWeeklyTime(Date.now(), [0, 1, 2, 3, 4, 5, 6], hm[0], hm[1]);
+    } else if (rep === 'weekly') {
+      const days = Array.isArray(t.repeatDays) && t.repeatDays.length ? t.repeatDays : [due.getDay()];
+      next = nextWeeklyTime(Date.now(), days, hm[0], hm[1]);
+    } else {
+      const mdays = Array.isArray(t.monthDays) && t.monthDays.length ? t.monthDays : [due.getDate()];
+      next = window.deskSchedule.nextMonthlyTime(Date.now(), mdays, hm[0], hm[1], t.monthlyMonths);
+    }
+    if (!next) next = new Date(+due + 7 * 86400000);
     t.done = true;
     t.doneAt = new Date().toISOString();
     t.nextAt = localISO(next);           // 下次自动重置的时刻
-    t.nextStartAt = t.startAt
-      ? localISO(new Date(+new Date(t.startAt) + (+next - +due)))
-      : null;
+    t.nextStartAt =
+      !t.remindByRepeat && t.startAt
+        ? localISO(new Date(+new Date(t.startAt) + (+next - +due)))
+        : null;
     flashId = t.id;
     persist();
     render();
@@ -488,6 +497,8 @@ const ed = {
   monthDaysInput: $('#edMonthDays'),
   hasDue: $('#edHasDue'),
   remindRow: $('#remindRow'),
+  repeatNowRow: $('#repeatNowRow'),
+  repeatNow: $('#edRepeatNow'),
   remindHour: $('#edRemindHour'),
   remindMin: $('#edRemindMin'),
   dueRow: $('#dueRow'),
@@ -527,7 +538,10 @@ function syncEdRows() {
   ed.dueRow.hidden = !on;
   ed.repeatDaysRow.hidden = !on || r !== 'weekly';
   ed.monthDaysRow.hidden = !on || r !== 'monthly';
-  if (ed.remindRow) ed.remindRow.hidden = on || r !== 'daily';
+  const canRepeatNow = on && (r === 'weekly' || r === 'monthly');
+  if (ed.repeatNowRow) ed.repeatNowRow.hidden = !canRepeatNow;
+  const remindOn = (!on && r === 'daily') || (canRepeatNow && ed.repeatNow && ed.repeatNow.checked);
+  if (ed.remindRow) ed.remindRow.hidden = !remindOn;
 }
 
 function openEditor(task) {
@@ -553,6 +567,7 @@ function openEditor(task) {
     document.querySelectorAll('.day-chip').forEach((chip) => {
       chip.classList.toggle('active', days.includes(Number(chip.dataset.d)));
     });
+    ed.repeatNow.checked = !!task.remindByRepeat;
     setTimeFields(ed.remindHour, ed.remindMin, task.remindAt || '09:00');
     syncEdRows();
     const mdays = Array.isArray(task.monthDays) ? task.monthDays : [];
@@ -583,6 +598,7 @@ function openEditor(task) {
     document.querySelectorAll('.day-chip').forEach((chip) => chip.classList.remove('active'));
     if (ed.monthDaysInput) ed.monthDaysInput.value = '';
     document.querySelectorAll('.ymon-chip').forEach((chip) => chip.classList.remove('active'));
+    ed.repeatNow.checked = false;
     setTimeFields(ed.remindHour, ed.remindMin, '09:00');
     syncEdRows();
   }
@@ -610,6 +626,10 @@ function saveEditor() {
     return;
   }
   const hasDue = ed.hasDue.checked;
+  // 「按重复日提前提醒」：截止日期只当最后期限
+  const repeatValue = ed.repeat.value;
+  const remindByRepeat =
+    hasDue && (repeatValue === 'weekly' || repeatValue === 'monthly') && ed.repeatNow.checked;
   const dDate = ed.dueDate.value || dateStr(new Date());
   const dTime = readTimeFields(ed.dueHour, ed.dueMin);
   const sDate = ed.startDate.value || '';
@@ -631,11 +651,15 @@ function saveEditor() {
       hasDue && ed.repeat.value === 'monthly'
         ? [...document.querySelectorAll('.ymon-chip.active')].map((c) => Number(c.dataset.m))
         : [],
-    remindAt: !hasDue && ed.repeat.value === 'daily' ? readTimeFields(ed.remindHour, ed.remindMin) : null,
+    remindAt:
+      remindByRepeat || (!hasDue && ed.repeat.value === 'daily')
+        ? readTimeFields(ed.remindHour, ed.remindMin)
+        : null,
+    remindByRepeat,
   };
 
   // 方案 A：每月重复时，若截止日期不符合「月份+几号」，自动对齐到下一次命中
-  if (hasDue && ed.repeat.value === 'monthly' && fields.monthDays.length) {
+  if (hasDue && !remindByRepeat && ed.repeat.value === 'monthly' && fields.monthDays.length) {
     const dueTs = +new Date(fields.due);
     const next = window.deskSchedule.nextMonthlyTime(
       dueTs - 60000,
@@ -651,7 +675,7 @@ function saveEditor() {
   }
 
   // 每周同理：截止日期的星期不在选中列表里 -> 对齐到下一个选中的星期
-  if (hasDue && ed.repeat.value === 'weekly' && fields.repeatDays.length) {
+  if (hasDue && !remindByRepeat && ed.repeat.value === 'weekly' && fields.repeatDays.length) {
     const d0 = new Date(fields.due);
     if (!fields.repeatDays.includes(d0.getDay())) {
       const nextW = window.deskSchedule.nextWeeklyTime(+d0 - 60000, fields.repeatDays, d0.getHours(), d0.getMinutes());
@@ -691,12 +715,14 @@ ed.hasDue.addEventListener('change', () => {
     ed.startRow.hidden = true;
     // 每周 / 每月没有截止日期就无处落点；「每天」本来就不需要日期，保留
     if (ed.repeat.value !== 'daily') ed.repeat.value = '';
+    if (ed.repeatNow) ed.repeatNow.checked = false;
   }
   syncEdRows();
 });
 
 // 重复方式切换 -> 显示 / 隐藏星期选择
 ed.repeat.addEventListener('change', syncEdRows);
+ed.repeatNow.addEventListener('change', syncEdRows);
 
 // 哪几个月：12 个格子，不选＝每个月都算
 const monthOfYearChips = document.getElementById('monthOfYearChips');
@@ -1570,7 +1596,7 @@ async function maybeNotify(reminding, now) {
   // 到点时程序没开着的「每天」任务：今天不补推（铃铛还在，只是不弹通知）
   const list = reminding.filter((t) => {
     const info = remindInfo(t, now);
-    return !(info && info.daily && info.at < sessionStartedAt);
+    return !(info && (info.daily || info.occurrence) && info.at < sessionStartedAt);
   });
   if (!list.length) return;
   const today = dateStr(now);
@@ -1581,7 +1607,7 @@ async function maybeNotify(reminding, now) {
     const info = remindInfo(t, now);
     return tr('notify.line', {
       title: t.title,
-      state: info.daily
+      state: info.daily || info.occurrence
         ? tr('notify.daily')
         : info.overdue
           ? tr('notify.overdue')
