@@ -1,5 +1,5 @@
 {
-  "version": "0.2.19",
+  "version": "0.2.20",
   "url": "https://github.com/Heisn1006/desk-note/releases/latest",
-  "notes": "记住展开/收起形态；新增「每天」重复与按类型分组；便签内更新面板；修复检查更新 HTTP 403"
+  "notes": "重复任务可按重复日提前提醒（截止日期当最后期限）；修复任务行每 30 秒闪一下"
 }
