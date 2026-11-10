@@ -1935,6 +1935,38 @@ if (!gotLock) {
       })();
     }
 
+    // 观察列表 DOM 变动（诊断「任务行闪一下」）：60 秒后把变动时间点写日志
+    if (process.argv.includes('--test-watch-list')) {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      (async () => {
+        await wait(1200);
+        await win.webContents.executeJavaScript(`(() => {
+          window.__mut = [];
+          const list = document.getElementById('list');
+          if (!list) return false;
+          const t0 = Date.now();
+          new MutationObserver((muts) => {
+            let added = 0, attr = 0;
+            for (const m of muts) {
+              if (m.type === 'childList') added += m.addedNodes.length;
+              if (m.type === 'attributes') attr++;
+            }
+            window.__mut.push({ t: Date.now() - t0, added, attr });
+          }).observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+          return true;
+        })()`);
+        await wait(60000);
+        const mut = await win.webContents.executeJavaScript(`(() => ({
+          events: window.__mut.length,
+          sample: window.__mut.slice(0, 40),
+          rows: [...document.querySelectorAll('#list .task')].map((e) => e.textContent.trim().slice(0, 12)),
+        }))()`);
+        dbg('WATCHLIST :: ' + JSON.stringify(mut));
+        quitting = true;
+        app.quit();
+      })();
+    }
+
     // 「按重复日提前提醒」自测：node dev/tools/repeat-remind-check.js
     // 真实编辑器：不设「最迟开始」，截止 2027-01-26，每周二，勾「从今天起按重复日提醒」，提醒时间 09:00
     if (process.argv.includes('--test-repeat-remind')) {

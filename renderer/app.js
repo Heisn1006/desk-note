@@ -56,11 +56,13 @@ const taskEl = (id) => $(`#list .task[data-id="${CSS.escape(String(id))}"]`);
 
 function setKbFocus(id, scroll) {
   kbId = id || null;
-  document.querySelectorAll('#list .task.kb-focus').forEach((el) => el.classList.remove('kb-focus'));
+  document.querySelectorAll('#list .task.kb-focus').forEach((el) => {
+    if (el.dataset.id !== kbId) el.classList.remove('kb-focus');
+  });
   if (!kbId) return;
   const el = taskEl(kbId);
   if (!el) return;
-  el.classList.add('kb-focus');
+  if (!el.classList.contains('kb-focus')) el.classList.add('kb-focus');
   if (scroll) el.scrollIntoView({ block: 'nearest' });
 }
 
@@ -277,6 +279,14 @@ function rowHTML(t, now) {
   </div>`;
 }
 
+// 只有内容真的变了才写 DOM：透明窗口上每一次多余的 DOM 写入都会让那一块重绘，
+// 30 秒一次的无条件重写看起来就是「任务行闪一下」
+function setText(el, text) {
+  if (el && el.textContent !== text) el.textContent = text;
+}
+let lastListHtml = null;
+let lastMiniNext = null;
+
 function render() {
   const now = new Date();
   const buckets = {
@@ -293,7 +303,7 @@ function render() {
   for (const t of tasks) buckets[groupOf(t, now)].push(t);
   for (const k of Object.keys(buckets)) buckets[k].sort(byDue);
 
-  $('#dayText').textContent = i18n.fmtDay(now);
+  setText($('#dayText'), i18n.fmtDay(now));
 
   const active = tasks.filter((t) => !t.done);
   const bits = [];
@@ -301,11 +311,12 @@ function render() {
   if (buckets.today.length) bits.push(tr('sub.today', { n: buckets.today.length }));
   if (buckets.tomorrow.length) bits.push(tr('sub.tomorrow', { n: buckets.tomorrow.length }));
   if (buckets.week.length) bits.push(tr('sub.week', { n: buckets.week.length }));
-  $('#subText').textContent = bits.length
+  const subText = bits.length
     ? bits.join(' · ')
     : active.length
       ? tr('sub.active', { n: active.length })
       : tr('sub.clear');
+  setText($('#subText'), subText);
 
   // 顶部提醒条
   const reminding = tasks.filter((t) => remindInfo(t, now)).sort(byDue);
@@ -316,23 +327,27 @@ function render() {
   if (reminding.length) {
     const f = reminding[0];
     const info = remindInfo(f, now);
-    $('#nuLabel').textContent = tr('nu.remind');
-    $('#nuTime').textContent = i18n.clipTitle(f.title);
-    $('#nuTitle').textContent = reminding.length > 1 ? tr('nu.more', { n: reminding.length }) : '';
-    $('#nuCd').textContent = info.daily || info.occurrence
-      ? tr('nu.daily')
-      : info.overdue
-        ? relText(new Date(f.due), now)
-        : tr('nu.left', { n: info.daysLeft });
+    setText($('#nuLabel'), tr('nu.remind'));
+    setText($('#nuTime'), i18n.clipTitle(f.title));
+    setText($('#nuTitle'), reminding.length > 1 ? tr('nu.more', { n: reminding.length }) : '');
+    setText(
+      $('#nuCd'),
+      info.daily || info.occurrence
+        ? tr('nu.daily')
+        : info.overdue
+          ? relText(new Date(f.due), now)
+          : tr('nu.left', { n: info.daysLeft })
+    );
     nu.hidden = false;
   } else if (next && dayDiff(new Date(next.due), now) <= 1) {
     const d = new Date(next.due);
-    $('#nuLabel').textContent = tr('nextup.label');
-    $('#nuTime').textContent = next.hasTime
-      ? `${pad(d.getHours())}:${pad(d.getMinutes())}`
-      : tr('nu.allday');
-    $('#nuTitle').textContent = next.title;
-    $('#nuCd').textContent = relText(d, now);
+    setText($('#nuLabel'), tr('nextup.label'));
+    setText(
+      $('#nuTime'),
+      next.hasTime ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : tr('nu.allday')
+    );
+    setText($('#nuTitle'), next.title);
+    setText($('#nuCd'), relText(d, now));
     nu.hidden = false;
   } else {
     nu.hidden = true;
@@ -379,7 +394,10 @@ function render() {
     }
   }
 
-  $('#list').innerHTML = html;
+  if (html !== lastListHtml) {
+    $('#list').innerHTML = html;
+    lastListHtml = html;
+  }
   syncKbFocus();
 
   renderMini();
@@ -813,7 +831,7 @@ function setMini(on) {
 function renderMini() {
   if (!miniMode) return;
   const now = new Date();
-  $('#miniDate').textContent = i18n.fmtDay(now);
+  setText($('#miniDate'), i18n.fmtDay(now));
 
   const active = tasks.filter((t) => !t.done);
   const timed = tasks.filter((t) => !t.done && t.due).sort(byDue);
@@ -821,9 +839,13 @@ function renderMini() {
 
   const n = active.length;
   const num = `<b class="mini-count${n === 0 ? ' zero' : ''}">${n}</b>`;
-  $('#miniNext').innerHTML = next
+  const miniNext = next
     ? tr('mini.todoNext', { n: num, title: esc(next.title) })
     : tr('mini.todo', { n: num });
+  if (miniNext !== lastMiniNext) {
+    $('#miniNext').innerHTML = miniNext;
+    lastMiniNext = miniNext;
+  }
 }
 
 $('#btnHide').addEventListener('click', () => setMini(true));
